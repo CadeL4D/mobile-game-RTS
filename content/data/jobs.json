@@ -1,0 +1,29 @@
+{
+  "jobs": [
+    {"id":"builders","name":"Builders","color":"#ffd166","sources":["camp"],"tasks":["deliver_construction","construct","upgrade","emergency_harvest"]},
+    {"id":"organizers","name":"Organizers","color":"#74c69d","sources":["ancillary"],"tasks":["haul","store","redistribute","deliver_recipe","open_lootbox"]},
+    {"id":"lumberjacks","name":"Lumberjacks","color":"#9c6644","sources":["lumber_shack"],"tasks":["harvest_wood","deliver_wood"]},
+    {"id":"miners","name":"Miners","color":"#adb5bd","sources":["mining_facility"],"tasks":["harvest_rock","discover_ore","deliver_rock"]},
+    {"id":"crystal_harvesters","name":"Crystal Harvesters","color":"#48cae4","sources":["crystal_harvestry"],"tasks":["harvest_crystal","deliver_crystal"]},
+    {"id":"farmers","name":"Farmers","color":"#80b918","sources":["farm","animal_pen","clucker_coop"],"tasks":["forage","plant","water_crop","tend_crop","manage_livestock"]},
+    {"id":"water_masters","name":"Water Masters","color":"#00b4d8","sources":["water_purifier"],"tasks":["gather_water","purify_water","supply_farm","fill_fountain"]},
+    {"id":"carpenters","name":"Carpenters","color":"#c08552","sources":["lumber_mill"],"tasks":["refine_boards"]},
+    {"id":"stone_cutters","name":"Stone Cutters","color":"#8d99ae","sources":["stone_cuttery"],"tasks":["refine_cut_stone"]},
+    {"id":"crystallers","name":"Crystallers","color":"#4cc9f0","sources":["crystillery"],"tasks":["refine_crylithium"]},
+    {"id":"smelters","name":"Smelters","color":"#f77f00","sources":["forge"],"tasks":["smelt_iron","smelt_gold","mint_coins"]},
+    {"id":"toolsmiths","name":"Toolsmiths","color":"#6c757d","sources":["toolsmithy"],"tasks":["make_tools","make_swords"]},
+    {"id":"armorsmiths","name":"Armorsmiths","color":"#495057","sources":["armorsmithy"],"tasks":["make_armor","make_helmet","make_shield"]},
+    {"id":"fletchers","name":"Fletchers","color":"#a7c957","sources":["bowyer"],"tasks":["make_bow","make_quiver","make_ballista_bolts"]},
+    {"id":"tumblers","name":"Tumblers","color":"#bcb8b1","sources":["tumbler"],"tasks":["make_stone_balls"]},
+    {"id":"cooks","name":"Cooks","color":"#e9c46a","sources":["kitchen"],"tasks":["make_rations","cook_meat","boil_eggs","slaughter"]},
+    {"id":"bottlers","name":"Bottlers","color":"#90e0ef","sources":["bottler"],"tasks":["bottle_water"]},
+    {"id":"medics","name":"Medics","color":"#f72585","sources":["clinic"],"tasks":["make_bandage","make_medkit","heal","cure"]},
+    {"id":"rangers","name":"Rangers","color":"#588157","sources":["ranger_lodge"],"tasks":["patrol","fight","capture_animal","deliver_animal"]},
+    {"id":"way_makers","name":"Way Makers","color":"#bc6c25","sources":["way_maker_shack"],"tasks":["build_road","upgrade_road","repair_road","remove_road"]},
+    {"id":"maintainers","name":"Maintainers","color":"#ffb703","sources":["maintenance_building"],"tasks":["repair","dismantle","clear_terrain","dig_hole"]},
+    {"id":"provisioners","name":"Provisioners","color":"#e76f51","sources":["marketplace"],"tasks":["buy","sell","stock_market"]},
+    {"id":"courier_suppliers","name":"Courier Suppliers","color":"#9b5de5","sources":["courier_station"],"tasks":["reserve_export","load_courier","unload_courier"]},
+    {"id":"trashers","name":"Trashers","color":"#6b705c","sources":["trash_can","landfill","processor","burner"],"tasks":["gather_trash","process_trash","burn_trash","fill_landfill"]},
+    {"id":"occultists","name":"Occultists","color":"#c77dff","sources":["essence_altar","reliquary"],"tasks":["pray","make_vessel","capture_soul","maintain_vessel"]}
+  ]
+}

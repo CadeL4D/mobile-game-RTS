@@ -1,0 +1,23 @@
+{
+  "trade_goods": [
+    {"id":"trade_wood","resource_id":"wood","name":"Wood","buy_price":2,"sell_price":1,"stock_min":24,"stock_max":96,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_rock","resource_id":"rock","name":"Rock","buy_price":2,"sell_price":1,"stock_min":24,"stock_max":96,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_crystal","resource_id":"crystal","name":"Crystal","buy_price":5,"sell_price":3,"stock_min":8,"stock_max":48,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_food","resource_id":"raw_vegetables","name":"Raw Vegetables","buy_price":2,"sell_price":1,"stock_min":24,"stock_max":96,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_water","resource_id":"clean_water","name":"Clean Water","buy_price":2,"sell_price":1,"stock_min":24,"stock_max":96,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_boards","resource_id":"boards","name":"Boards","buy_price":5,"sell_price":3,"stock_min":8,"stock_max":48,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_cut_stone","resource_id":"cut_stone","name":"Cut Stone","buy_price":5,"sell_price":3,"stock_min":8,"stock_max":48,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_crylithium","resource_id":"crylithium","name":"Crylithium","buy_price":9,"sell_price":5,"stock_min":4,"stock_max":24,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_iron_ingot","resource_id":"iron_ingot","name":"Iron Ingot","buy_price":12,"sell_price":7,"stock_min":4,"stock_max":24,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_gold_ingot","resource_id":"gold_ingot","name":"Gold Ingot","buy_price":18,"sell_price":11,"stock_min":2,"stock_max":12,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_rations","resource_id":"rations","name":"Rations","buy_price":5,"sell_price":3,"stock_min":8,"stock_max":40,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_bottled_water","resource_id":"water_bottle","name":"Bottled Water","buy_price":5,"sell_price":3,"stock_min":8,"stock_max":40,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_bandage","resource_id":"bandage","name":"Bandage","buy_price":8,"sell_price":5,"stock_min":4,"stock_max":24,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_medkit","resource_id":"medkit","name":"Medkit","buy_price":18,"sell_price":11,"stock_min":2,"stock_max":12,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_ballista_bolts","resource_id":"ballista_bolts","name":"Ballista Bolts","buy_price":7,"sell_price":4,"stock_min":8,"stock_max":40,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_stone_balls","resource_id":"stone_balls","name":"Stone Balls","buy_price":7,"sell_price":4,"stock_min":8,"stock_max":40,"evidence":"VERIFY_RUNTIME"},
+    {"id":"trade_suspicious_key","resource_id":"suspicious_key","name":"Suspicious Key","buy_price":80,"sell_price":24,"stock_min":1,"stock_max":4,"evidence":"CONFIRMED_OFFICIAL"},
+    {"id":"trade_god_dust","resource_id":"god_dust","name":"God Dust","buy_price":120,"sell_price":60,"stock_min":0,"stock_max":2,"evidence":"CONFIRMED_OFFICIAL"},
+    {"id":"trade_filled_vessel","resource_id":"filled_eerie_vessel","name":"Filled Eerie Vessel","buy_price":240,"sell_price":140,"stock_min":0,"stock_max":1,"evidence":"CONFIRMED_OFFICIAL"}
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "modes": [
+    {"id":"nightmare","name":"Nightmare","first_attack_day":0,"monster_rate":1.65,"season_days":7,"recommended":false},
+    {"id":"survival","name":"Survival","first_attack_day":1,"monster_rate":1.0,"season_days":5,"recommended":false},
+    {"id":"traditional","name":"Traditional","first_attack_day":2,"monster_rate":0.72,"season_days":5,"recommended":true},
+    {"id":"peaceful","name":"Peaceful","first_attack_day":-1,"monster_rate":0.0,"season_days":5,"recommended":false},
+    {"id":"custom","name":"Custom","first_attack_day":2,"monster_rate":1.0,"corruption_rate":1.0,"needs_rate":1.0,"resource_abundance":1.0,"season_days":5,"recommended":false},
+    {"id":"sandbox","name":"Sandbox","first_attack_day":-1,"monster_rate":0.0,"corruption_rate":0.0,"needs_rate":0.0,"resource_abundance":3.0,"season_days":5,"unlimited_influence":true,"instant_build":true,"sandbox_tools":true,"recommended":false}
+  ],
+  "biomes": [
+    {"id":"forest","name":"Forest","palette":"verdant"},
+    {"id":"haven","name":"Haven","palette":"enchanted"},
+    {"id":"desert","name":"Desert","palette":"sand"},
+    {"id":"red_sands","name":"Red Sands","palette":"rust"},
+    {"id":"marsh","name":"Marsh","palette":"swamp"},
+    {"id":"dry_lands","name":"Dry Lands","palette":"ochre"},
+    {"id":"island","name":"Islands","palette":"coastal"}
+  ],
+  "spells": [
+    {"id":"grab","name":"Grab","group":"hand","cost":40},
+    {"id":"divine_blessing","name":"Divine Blessing","group":"aid","cost":1500},
+    {"id":"harvest","name":"Harvest","group":"aid","cost":800},
+    {"id":"healing_aura","name":"Healing Aura","group":"aid","cost":400},
+    {"id":"holy_potatoes","name":"Holy Potatoes","group":"aid","cost":700},
+    {"id":"holy_wood","name":"Holy Wood","group":"aid","cost":700},
+    {"id":"mend","name":"Mend","group":"aid","cost":800,"extinguishes_fire":true},
+    {"id":"motivate_land","name":"Motivate Land","group":"aid","cost":700},
+    {"id":"regenerate","name":"Regenerate","group":"aid","cost":250},
+    {"id":"resurrect","name":"Resurrect","group":"aid","cost":500},
+    {"id":"charm","name":"Charm","group":"defensive","cost":750},
+    {"id":"god_tower","name":"God Tower","group":"defensive","cost":1000,"maintenance":1000},
+    {"id":"god_wall","name":"God Wall","group":"defensive","cost":150,"maintenance":150},
+    {"id":"summon_holy_golem","name":"Summon Holy Golem","group":"defensive","cost":500,"maintenance":500},
+    {"id":"banish","name":"Banish","group":"offensive","cost":500},
+    {"id":"cold_aura","name":"Cold Aura","group":"offensive","cost":400},
+    {"id":"earthquake","name":"Earthquake","group":"offensive","cost":2000},
+    {"id":"flame","name":"Flame","group":"offensive","cost":5},
+    {"id":"lightning_bolt","name":"Lightning Bolt","group":"offensive","cost":100},
+    {"id":"magic_bolts","name":"Magic Bolts","group":"offensive","cost":100},
+    {"id":"meteor","name":"Meteor","group":"offensive","cost":200},
+    {"id":"comet","name":"Comet","group":"offensive","cost":300},
+    {"id":"conjure_essence","name":"Conjure Essence","group":"utility","cost":10},
+    {"id":"conjure_material","name":"Conjure Material","group":"utility","cost":67},
+    {"id":"construct","name":"Construct","group":"utility","cost":1000},
+    {"id":"dispel_god_structure","name":"Dispel God Structure","group":"utility","cost":0},
+    {"id":"dispel_golem","name":"Dispel Golem","group":"utility","cost":0},
+    {"id":"dissolve","name":"Dissolve","group":"utility","cost":200},
+    {"id":"illuminate","name":"Illuminate","group":"utility","cost":100},
+    {"id":"recall","name":"Recall","group":"utility","cost":200},
+    {"id":"storm","name":"Storm","group":"utility","cost":1500},
+    {"id":"summon_labor_golem","name":"Summon Labor Golem","group":"utility","cost":270,"maintenance":270}
+  ],
+  "damage_types": [
+    {"id":"regular","name":"Regular"},{"id":"crushing","name":"Crushing"},{"id":"piercing","name":"Piercing"},{"id":"slashing","name":"Slashing"},{"id":"fire","name":"Fire"},{"id":"ice","name":"Ice"},{"id":"electric","name":"Electric"},{"id":"poison","name":"Poison"},{"id":"dysentery","name":"Dysentery"},{"id":"blight","name":"Blight"},{"id":"nutrients","name":"Nutrients"},{"id":"magic","name":"Magic"},{"id":"magic_fire","name":"Magic Fire"},{"id":"magic_electric","name":"Magic Electric"},{"id":"magic_ice","name":"Magic Ice"},{"id":"water","name":"Water"}
+  ]
+}

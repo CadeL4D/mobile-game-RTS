@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "policy": "clean_room_original_only",
+  "assets": [
+    {
+      "id": "world_map_v1",
+      "path": "res://art/generated/world_map_v1.png",
+      "kind": "world_map",
+      "method": "openai_image_generation",
+      "source_inputs": [],
+      "review_pass": 1,
+      "license_status": "project_original"
+    },
+    {
+      "id": "camp_tier1_v1",
+      "path": "res://art/generated/buildings/camp_tier1_v1.png",
+      "kind": "building_sprite",
+      "method": "openai_image_generation_chroma_processed",
+      "source_inputs": [],
+      "review_pass": 1,
+      "runtime_status": "concept_only_pending_native_pixel_replacement",
+      "license_status": "project_original"
+    },
+    {
+      "id": "farm_tier1_v1",
+      "path": "res://art/generated/buildings/farm_tier1_v1.png",
+      "kind": "building_sprite",
+      "method": "openai_image_generation_chroma_processed",
+      "source_inputs": [],
+      "review_pass": 1,
+      "runtime_status": "concept_only_pending_native_pixel_replacement",
+      "license_status": "project_original"
+    },
+    {
+      "id": "animal_pen_tier1_v1",
+      "path": "res://art/generated/buildings/animal_pen_tier1_v1.png",
+      "kind": "building_sprite",
+      "method": "openai_image_generation_chroma_processed",
+      "source_inputs": [],
+      "review_pass": 1,
+      "runtime_status": "concept_only_pending_native_pixel_replacement",
+      "license_status": "project_original"
+    },
+    {
+      "id": "crystal_golem_combobulator_tier1_v1",
+      "path": "res://art/generated/buildings/crystal_golem_combobulator_tier1_v1.png",
+      "kind": "building_sprite",
+      "method": "openai_image_generation_chroma_processed",
+      "source_inputs": [],
+      "review_pass": 1,
+      "runtime_status": "concept_only_pending_native_pixel_replacement",
+      "license_status": "project_original"
+    },
+    {
+      "id": "clinic_tier1_v3",
+      "path": "res://art/generated/buildings/clinic_tier1_v3.png",
+      "kind": "building_sprite",
+      "method": "openai_image_generation_chroma_processed_native_pixel_reduction",
+      "source_inputs": [],
+      "review_pass": 1,
+      "runtime_status": "concept_only_pending_minimal_pixel_redesign",
+      "native_size": [56, 72],
+      "palette_limit": 32,
+      "camera_rule": "orthographic_top_down_90_degree_pipeline_test",
+      "license_status": "project_original"
+    }
+  ]
+}

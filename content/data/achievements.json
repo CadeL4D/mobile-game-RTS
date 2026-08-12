@@ -1,0 +1,795 @@
+{
+  "achievements": [
+    {
+      "id": "you_already_lost",
+      "name": "You Already Lost",
+      "description": "Build your first Camp.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "deforestation",
+      "name": "Deforestation",
+      "description": "Harvest 256 wood from trees.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "build_all_the_things",
+      "name": "Build All The Things!",
+      "description": "Build 16 of buildings, except walls.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "quarry",
+      "name": "Quarry",
+      "description": "Harvest 256 rock from mountains.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_cost_of_progress",
+      "name": "The Cost of Progress",
+      "description": "Upgrade 16 buildings.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "foraging",
+      "name": "Foraging",
+      "description": "Harvest 256 fruits, vegetables or mushrooms.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "immigrant_song",
+      "name": "Immigrant Song",
+      "description": "Have 16 nomads join the village.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "survive",
+      "name": "Survive!",
+      "description": "Survive 8 days in any region!",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "hoarder",
+      "name": "Hoarder",
+      "description": "Generate 32 trash from decaying resources.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "kyle_powered",
+      "name": "Kyle Powered!",
+      "description": "Harvest 256 crystals from crystal patches.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "chill",
+      "name": "Chill",
+      "description": "Enter a full moon.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "industry",
+      "name": "Industry",
+      "description": "Refine 128 logs or rocks into boards or cut stone.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "its_huntin_season",
+      "name": "It's Huntin' Season",
+      "description": "Successfully capture 16 animals.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "burned_alive",
+      "name": "Burned Alive",
+      "description": "Lose a villager due to fire damage.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "seriously",
+      "name": "Seriously?",
+      "description": "Survive 8 Disasters.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "rise_to_riches",
+      "name": "Rise to Riches",
+      "description": "Create 3,072 coins.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "eggcellent",
+      "name": "Eggcellent",
+      "description": "Have Cluckers lay 64 eggs.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "tower_defense",
+      "name": "Tower Defense",
+      "description": "Build 12 Towers.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_moon",
+      "name": "The Moon",
+      "description": "Kill 16 enemies during a full moon.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "well_well_well",
+      "name": "Well, Well, Well...",
+      "description": "Build 3 wells.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "buried_treasure",
+      "name": "Buried Treasure",
+      "description": "Uncover 12 keys or lootboxes from magic circles.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "factory_farming",
+      "name": "Factory Farming",
+      "description": "Slaughter 64 animals in the kitchen.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "literal_dumpster_fire",
+      "name": "Literal Dumpster Fire",
+      "description": "Burn 192 trash in a Trash Burner.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "cluck_nuggets",
+      "name": "Cluck Nuggets",
+      "description": "Create 42 Cooked Meat.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "weakest_links",
+      "name": "Weakest Links",
+      "description": "Have 24 villagers die for any reason.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "stop_poking_me",
+      "name": "Stop Poking Me!",
+      "description": "Force a lootbox to move 12 times.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "who_turned_off_the_sun",
+      "name": "Who Turned Off The Sun?",
+      "description": "Enter an eclipse.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "catch_it_all",
+      "name": "Catch It All",
+      "description": "Gather 2,048 water with Rain Catchers.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "god_king",
+      "name": "God King",
+      "description": "Upgrade the camp to completed castle.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "dooooooooomed",
+      "name": "DOOOOOOOOOMED",
+      "description": "Doom a world.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "poor_weaponry",
+      "name": "Poor Weaponry",
+      "description": "Kill a skeleton with piercing damage.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "touch_grass",
+      "name": "Touch Grass",
+      "description": "Touch grass with your hand 16 times.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "nestled_pure_life_water",
+      "name": "Nestled Pure Life Water",
+      "description": "Generate 2,048 water with Water Purifiers.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "mana_millionaire",
+      "name": "Mana Millionaire",
+      "description": "Collect 50,000 essence.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "power_overwhelming",
+      "name": "Power Overwhelming",
+      "description": "Gather or generate a total of 4,096 energy in the village over time.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "lord_of_the_arrows",
+      "name": "Lord of The Arrows",
+      "description": "Have villagers equip a bow 32 times.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "take_that",
+      "name": "Take That!",
+      "description": "Drown a Fire Elemental.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "duggar",
+      "name": "Duggar",
+      "description": "Give birth to 19 children.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "electronic_sharks",
+      "name": "Electronic Sharks",
+      "description": "Open 8 Lootboxes.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "it_never_stops",
+      "name": "It Never Stops!",
+      "description": "Kill 16 Drones.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "gods_village",
+      "name": "God's Village",
+      "description": "Upgrade 12 houses to High Quality.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_red_sun_rises",
+      "name": "The Red Sun Rises",
+      "description": "Enter a bloodmoon.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_doggo_house",
+      "name": "The Doggo House",
+      "description": "Build 6 Doggo Houses.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "tyrant",
+      "name": "Tyrant",
+      "description": "Sacrifice a villager with a Cullis Gate.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "catjeet_has_wares",
+      "name": "Catjeet Has Wares",
+      "description": "Buy or sell 256 resources to Catjeet Provisioners.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "helpful_doggos",
+      "name": "Helpful Doggos",
+      "description": "Have Doggos store 64 resources.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "sardines",
+      "name": "Sardines",
+      "description": "Upgrade 6 houses to High Occupancy.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_grind",
+      "name": "The Grind",
+      "description": "Harvest 1,024 of any resources from anywhere.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "diggy_diggy_hole",
+      "name": "Diggy Diggy Hole",
+      "description": "Dig out 192 tiles.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "angst",
+      "name": "Angst",
+      "description": "Have 24 children grow up.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "explosive_side_effects",
+      "name": "Explosive Side Effects",
+      "description": "'Accidentally' cause a Cullis Gate explosion.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "well_protected",
+      "name": "Well Protected",
+      "description": "Create 64 armor of any type at the Armorsmithy.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "28_seconds_later",
+      "name": "28 Seconds Later",
+      "description": "Have 5 villagers or livestock turn into a zombie.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "tools_for_all",
+      "name": "Tools For All",
+      "description": "Create 64 tools of any type at the Toolsmithy.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_longest_journey",
+      "name": "The Longest Journey",
+      "description": "Send 16 Migrants to other regions.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "retrofit",
+      "name": "Retrofit",
+      "description": "Max Upgrade 12 Towers.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "first_world_problems",
+      "name": "First World Problems",
+      "description": "Upgrade 6 houses to Reinforced High Quality Houses.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "hospice_care",
+      "name": "Hospice Care",
+      "description": "Have 24 villagers die from old age.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "take_it_back",
+      "name": "Take It Back!",
+      "description": "Convert 256 tiles of corruption.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "strays",
+      "name": "Strays",
+      "description": "Have 16 Catjeet Nomads join the village.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "what_is_my_purpose",
+      "name": "What Is My Purpose?",
+      "description": "Create 8 Cube-E golems.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "golems_will_take_our_jobs",
+      "name": "Golems Will Take Our Jobs",
+      "description": "Summon 24 Labor Golems.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "porter",
+      "name": "Porter",
+      "description": "Deliver 128 resources to any region.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "fight_the_corruption",
+      "name": "Fight The Corruption",
+      "description": "Destroy 6 Corrupted Buildings.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "god_dammit",
+      "name": "God Dammit...",
+      "description": "Lose a region completely.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "a_worthy_sacrifice",
+      "name": "A Worthy Sacrifice",
+      "description": "Throw a nephalim into a Cullis Gate.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_big_doggo_house",
+      "name": "The Big Doggo House",
+      "description": "Upgrade 6 Doggo Houses to Established.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "let_it_snow_arrows",
+      "name": "Let It Snow Arrows",
+      "description": "Build 4 Ice Ballista.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "prodigious_planner",
+      "name": "Prodigious Planner",
+      "description": "Build 12 storage buildings of any kind.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "whats_that_smell",
+      "name": "What's That Smell?",
+      "description": "Have 6 trashy slime spawn.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "ragnarok",
+      "name": "Ragnarok",
+      "description": "Have or cause an earthquake during a blood moon.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "animal_rights_violations",
+      "name": "Animal Rights Violations",
+      "description": "Have 12 Doggos die for any reason.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "whale",
+      "name": "Whale",
+      "description": "Buy 16 Suspicious Keys from Catjeet Provisioners.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "dude_wth_man",
+      "name": "Dude, WTH Man?!",
+      "description": "Drop a villager in a dangerous area.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "attaboy",
+      "name": "Attaboy!",
+      "description": "Have any Doggo grab a key and open a loot box on their own.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "acropolis",
+      "name": "Acropolis",
+      "description": "Upgrade 6 houses to Reinforced High Occupancy Houses.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "wild_growth",
+      "name": "Wild Growth",
+      "description": "Make 128 tiles of resources grow.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "hands_off_me",
+      "name": "Hands off me!",
+      "description": "Grab 128 villagers.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "holy_defense",
+      "name": "Holy Defense",
+      "description": "Place 12 God Towers.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "praise_be_unto_thee",
+      "name": "Praise Be Unto Thee",
+      "description": "Have occulists complete 512 pray actions.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "whoops_sorry",
+      "name": "Whoops, sorry!",
+      "description": "Drop a villager because you ran out of mana.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "all_roads_lead_to_home",
+      "name": "All Roads Lead To Home",
+      "description": "Build 128 Cut Stone Roads.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "baptized_golemancer",
+      "name": "Baptized Golemancer",
+      "description": "Summon 16 Holy Golems.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "rosebud",
+      "name": "Rosebud",
+      "description": "Generate 256 flowers from magic and energy usage.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "ive_got_prime",
+      "name": "I've Got Prime!",
+      "description": "Receive 128 resources from any region.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "im_done_playing_with_you",
+      "name": "I'm Done Playing With You...",
+      "description": "Dispel a summoned building or golem 24 times.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "deified_farmer",
+      "name": "Deified Farmer",
+      "description": "Grow 128 patches of holy potatoes.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "i_want_my_key_back",
+      "name": "I Want My Key Back!!",
+      "description": "Get trash from a Loot Box.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "light_the_way",
+      "name": "Light The Way!",
+      "description": "Cast Illuminate at night 8 times.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "never_gonna_give_you_up",
+      "name": "Never gonna give you up...",
+      "description": "Recall an injured villager while they are fleeing.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "obvious_in_hindsight",
+      "name": "Obvious in Hindsight",
+      "description": "Have a lightning rod misdirect your lightning bolt spell.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_dust_must_flow",
+      "name": "The Dust Must Flow!",
+      "description": "Sell at total of 24 god dust to Catjeet Provisioners.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "eco_terrorist",
+      "name": "Eco Terrorist",
+      "description": "Dissolve 128 tiles.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "crumbling_defenses",
+      "name": "Crumbling Defenses",
+      "description": "Have 24 walls destroyed.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "charming_deity",
+      "name": "Charming Deity",
+      "description": "Charm 24 Monsters.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "migrant_workers",
+      "name": "Migrant Workers",
+      "description": "Hire 12 Catjeet Laborers.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "i_like_big_buttresses",
+      "name": "I Like Big Buttresses",
+      "description": "Build 128 curtain walls.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "popcorn",
+      "name": "Popcorn",
+      "description": "Dissolve 128 bodies with the dissolve spell.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "god_of_love_and_thunder",
+      "name": "God of Love and Thunder",
+      "description": "Bless 24 women.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "omg",
+      "name": "OMG",
+      "description": "Put aside all sense of decency, and toss a child into a Cullis Gate.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "war_crimes",
+      "name": "War Crimes",
+      "description": "Carelessly toss a Doofy Doggo into a Cullis Gate.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "the_soul_trade",
+      "name": "The Soul Trade",
+      "description": "Sell a filled Eerie Vassel.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "impatient",
+      "name": "Impatient",
+      "description": "Cast recall on 32 nomads.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "water_jousting",
+      "name": "Water Jousting",
+      "description": "Kill 8 monsters in the water.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "ghost_town",
+      "name": "Ghost Town",
+      "description": "Store 16 ghosts in eerie vessels.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "grandmaster_sparkles",
+      "name": "Grandmaster Sparkles",
+      "description": "Kill a villager with a lightning bolt.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "god_or_magician",
+      "name": "God or Magician",
+      "description": "Have 512 villagers react to your actions.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "rise_from_the_grave",
+      "name": "Rise From The Grave",
+      "description": "Resurrect 16 Villagers.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "midgar",
+      "name": "Midgar",
+      "description": "Drop a comet on your camp or castle.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "fine_ill_do_it_myself",
+      "name": "Fine, I'll Do It Myself!",
+      "description": "Drop 64 resources into buildings with the grab spell.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "bad_aim",
+      "name": "Bad Aim",
+      "description": "Accidentally hit a villager with a meteor or comet.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "catjeetastrophic",
+      "name": "Catjeetastrophic",
+      "description": "Have 6 Catjeet die for any reason.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    },
+    {
+      "id": "was_i_a_good_boy",
+      "name": "Was I a Good Boy?",
+      "description": "Resurrect 4 Doggos.",
+      "evidence": "CONFIRMED_OFFICIAL",
+      "source": "https://steamcommunity.com/stats/328080/achievements/"
+    }
+  ]
+}

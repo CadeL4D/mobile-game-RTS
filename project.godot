@@ -1,0 +1,61 @@
+; Engine configuration file.
+; Godot 4.7 mobile/desktop clean-room colony simulation.
+
+config_version=5
+
+[application]
+
+config/name="Ruinward"
+run/main_scene="res://presentation/scenes/main.tscn"
+config/features=PackedStringArray("4.7", "Mobile")
+config/icon="res://icon.svg"
+
+[autoload]
+
+AppController="*res://core/app_controller.gd"
+ContentRegistry="*res://core/content_registry.gd"
+ProgressionService="*res://core/progression_service.gd"
+MapPackageService="*res://core/map_package_service.gd"
+WorldCampaignService="*res://core/world_campaign_service.gd"
+SimulationHost="*res://core/simulation/simulation_host.gd"
+SaveService="*res://core/save_service.gd"
+SettingsService="*res://core/settings_service.gd"
+AudioDirector="*res://core/audio_director.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=0
+
+[input]
+
+pause_game={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":32,"unicode":32)]
+}
+quick_save={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":4194338)]
+}
+quick_load={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":4194339)]
+}
+cancel_action={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":4194305)]
+}
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+textures/default_filters/use_nearest_mipmap_filter=false
+textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.0118, 0.0196, 0.0235, 1)

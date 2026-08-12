@@ -1,0 +1,23 @@
+{
+  "music_tracks": [
+    {"id":"menu_astral_cartography","name":"Astral Cartography","mood":"menu"},
+    {"id":"world_map_long_roads","name":"Long Roads","mood":"world_map"},
+    {"id":"settlement_first_fires","name":"First Fires","mood":"calm"},
+    {"id":"settlement_green_roofs","name":"Green Roofs","mood":"calm"},
+    {"id":"settlement_rainwork","name":"Rainwork","mood":"calm"},
+    {"id":"winter_stillwater","name":"Stillwater Winter","mood":"winter"},
+    {"id":"night_beyond_the_wall","name":"Beyond the Wall","mood":"night"},
+    {"id":"corruption_underroot","name":"Underroot","mood":"corruption"},
+    {"id":"corruption_black_bloom","name":"Black Bloom","mood":"corruption"},
+    {"id":"blood_moon_red_clock","name":"Red Clock","mood":"blood_moon"},
+    {"id":"eclipse_noonday_void","name":"Noonday Void","mood":"eclipse"},
+    {"id":"disaster_broken_weather","name":"Broken Weather","mood":"disaster"},
+    {"id":"battle_stone_and_spark","name":"Stone and Spark","mood":"battle"},
+    {"id":"goal_small_triumphs","name":"Small Triumphs","mood":"goal"},
+    {"id":"doom_last_lantern","name":"The Last Lantern","mood":"doom"},
+    {"id":"credits_after_the_ruin","name":"After the Ruin","mood":"credits"}
+  ],
+  "audio_cues": [
+    {"id":"ui_tap","bus":"UI"},{"id":"invalid_action","bus":"UI"},{"id":"building_placed","bus":"Buildings"},{"id":"building_completed","bus":"Buildings"},{"id":"goal_completed","bus":"UI"},{"id":"achievement_completed","bus":"UI"},{"id":"harvest","bus":"Buildings"},{"id":"warning","bus":"UI"}
+  ]
+}
