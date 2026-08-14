@@ -3,16 +3,11 @@ name: Build unsigned iOS IPA
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
     tags:
-      - init
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
+      - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: unsigned-ios-${{ github.ref }}
@@ -197,6 +192,21 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Attach unsigned IPA to tagged prerelease
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Ruinward ${{ github.ref_name }}
+          prerelease: true
+          generate_release_notes: false
+          body: |
+            Automated unsigned iOS development build.
+
+            This IPA is intentionally unsigned. It must be signed with an Apple development or distribution identity before it can be installed on an iPhone or iPad.
+          files: |
+            build/ios/Ruinward-unsigned.ipa
+            build/ios/Ruinward-unsigned.ipa.sha256
+
       - name: Upload build logs after failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -216,7 +226,7 @@ jobs:
           {
             echo "## Unsigned iOS build"
             echo
-            echo "Artifact: \`Ruinward-unsigned-ipa-${GITHUB_RUN_NUMBER}\`"
+            echo "Artifact: \`Ruinward-unsigned-ipa-${GITHUB_REF_NAME}-${GITHUB_RUN_NUMBER}\`"
             echo
             echo "SHA-256: \`${{ steps.package.outputs.checksum }}\`"
             echo
