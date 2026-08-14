@@ -49,7 +49,7 @@
     {"id":"loracre","name":"Loracre","biome":"forest","position":[0.51,0.55],"adjacent":["gateway","clearland","springland","vertmist"],"evidence":"CONFIRMED_RUNTIME"},
     {"id":"springland","name":"Springland","biome":"forest","position":[0.47,0.62],"adjacent":["clearland","loracre","northoak","outlands"],"evidence":"WIKI_SUPPORTED"},
 
-    {"id":"survival_island","name":"Survival Island","biome":"island","position":[0.88,0.82],"adjacent":["unverified_region_45"],"evidence":"WIKI_SUPPORTED"},
-    {"id":"unverified_region_45","name":"Unknown Region 45","biome":"island","position":[0.83,0.88],"adjacent":["survival_island"],"evidence":"VERIFY_RUNTIME"}
+    {"id":"survival_island","name":"Survival Island","biome":"island","position":[0.88,0.82],"adjacent":["lost_island"],"evidence":"WIKI_SUPPORTED"},
+    {"id":"lost_island","name":"Lost Island","biome":"island","position":[0.83,0.88],"adjacent":["survival_island"],"evidence":"VERIFY_RUNTIME"}
   ]
 }

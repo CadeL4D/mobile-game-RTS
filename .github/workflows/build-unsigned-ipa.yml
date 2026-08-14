@@ -1,0 +1,224 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - init
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unsigned-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7-stable
+  GODOT_TEMPLATE_VERSION: 4.7.stable
+  IOS_PRESET: iOS
+  APP_NAME: Ruinward
+
+jobs:
+  build-unsigned-ipa:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Cache Godot downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/godot-downloads
+          key: godot-${{ runner.os }}-${{ runner.arch }}-${{ env.GODOT_VERSION }}
+
+      - name: Download Godot and export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cache_dir="$RUNNER_TEMP/godot-downloads"
+          mkdir -p "$cache_dir"
+
+          editor_zip="$cache_dir/Godot_v${GODOT_VERSION}_macos.universal.zip"
+          templates_tpz="$cache_dir/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          release_base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}"
+
+          if [[ ! -s "$editor_zip" ]]; then
+            curl --fail --location --retry 3 --output "$editor_zip" \
+              "$release_base/Godot_v${GODOT_VERSION}_macos.universal.zip"
+          fi
+          if [[ ! -s "$templates_tpz" ]]; then
+            curl --fail --location --retry 3 --output "$templates_tpz" \
+              "$release_base/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          fi
+
+      - name: Install Godot and export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cache_dir="$RUNNER_TEMP/godot-downloads"
+          install_dir="$RUNNER_TEMP/godot-editor"
+          unpacked_templates="$RUNNER_TEMP/godot-templates"
+          template_dir="$HOME/Library/Application Support/Godot/export_templates/${GODOT_TEMPLATE_VERSION}"
+
+          rm -rf "$install_dir" "$unpacked_templates"
+          mkdir -p "$install_dir" "$unpacked_templates" "$template_dir"
+          unzip -q "$cache_dir/Godot_v${GODOT_VERSION}_macos.universal.zip" -d "$install_dir"
+          unzip -q "$cache_dir/Godot_v${GODOT_VERSION}_export_templates.tpz" -d "$unpacked_templates"
+          cp -R "$unpacked_templates/templates/." "$template_dir/"
+
+          godot_bin="$install_dir/Godot.app/Contents/MacOS/Godot"
+          chmod +x "$godot_bin"
+          "$godot_bin" --version
+          echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
+
+      - name: Show Xcode environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode-select -p
+          xcodebuild -version
+
+      - name: Run project regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          "$GODOT_BIN" --headless --path . --offline \
+            --log-file build/github-ios-tests.log -- --run-tests \
+            2>&1 | tee build/github-ios-tests-console.log
+          if grep -E "SCRIPT ERROR|Parse Error|Compile Error|ERROR:" \
+            build/github-ios-tests.log build/github-ios-tests-console.log; then
+            echo "Godot reported a script or runtime error even if the test harness printed PASS." >&2
+            exit 1
+          fi
+          if ! grep -q "TEST RESULT: PASS" build/github-ios-tests-console.log; then
+            echo "The regression suite did not reach its explicit PASS marker." >&2
+            exit 1
+          fi
+
+      - name: Export Godot project to Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build/ios
+          mkdir -p build/ios
+          "$GODOT_BIN" --headless --path . \
+            --log-file build/ios/godot-ios-export.log \
+            --export-release "$IOS_PRESET" "build/ios/${APP_NAME}.xcodeproj"
+          test -d "build/ios/${APP_NAME}.xcodeproj"
+          test -f "build/ios/${APP_NAME}.xcodeproj/project.pbxproj"
+          test -d "build/ios/${APP_NAME}"
+          xcodebuild -list -project "build/ios/${APP_NAME}.xcodeproj"
+
+      - name: Build unsigned iOS archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -o pipefail
+
+          xcodebuild archive \
+            -project "build/ios/${APP_NAME}.xcodeproj" \
+            -scheme "$APP_NAME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -archivePath "build/ios/${APP_NAME}.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee build/ios/xcodebuild.log
+
+          test -d "build/ios/${APP_NAME}.xcarchive"
+
+      - name: Package and verify unsigned IPA
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive_apps="build/ios/${APP_NAME}.xcarchive/Products/Applications"
+          source_app="$(find "$archive_apps" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [[ -z "$source_app" ]]; then
+            echo "No application bundle was produced by xcodebuild." >&2
+            exit 1
+          fi
+
+          package_dir="$RUNNER_TEMP/unsigned-ipa"
+          ipa_path="$PWD/build/ios/${APP_NAME}-unsigned.ipa"
+          rm -rf "$package_dir"
+          mkdir -p "$package_dir/Payload"
+          ditto "$source_app" "$package_dir/Payload/$(basename "$source_app")"
+
+          packaged_app="$package_dir/Payload/$(basename "$source_app")"
+          find "$packaged_app" -type d -name _CodeSignature -prune -exec rm -rf {} +
+          find "$packaged_app" -type f -name embedded.mobileprovision -delete
+
+          if codesign --verify --deep --strict "$packaged_app" >/dev/null 2>&1; then
+            echo "Application unexpectedly contains a valid code signature." >&2
+            exit 1
+          fi
+
+          plutil -lint "$packaged_app/Info.plist"
+          executable_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$packaged_app/Info.plist")"
+          test -x "$packaged_app/$executable_name"
+          lipo -info "$packaged_app/$executable_name"
+
+          (
+            cd "$package_dir"
+            /usr/bin/zip -qry "$ipa_path" Payload
+          )
+          unzip -tq "$ipa_path"
+
+          checksum="$(shasum -a 256 "$ipa_path" | awk '{print $1}')"
+          echo "$checksum  $(basename "$ipa_path")" > "${ipa_path}.sha256"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ruinward-unsigned-ipa-${{ github.ref_name }}-${{ github.run_number }}
+          path: |
+            build/ios/Ruinward-unsigned.ipa
+            build/ios/Ruinward-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs after failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ruinward-ios-failure-logs-${{ github.run_number }}
+          path: |
+            build/github-ios-tests.log
+            build/github-ios-tests-console.log
+            build/ios/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Write build summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## Unsigned iOS build"
+            echo
+            echo "Artifact: \`Ruinward-unsigned-ipa-${GITHUB_RUN_NUMBER}\`"
+            echo
+            echo "SHA-256: \`${{ steps.package.outputs.checksum }}\`"
+            echo
+            echo "This IPA is intentionally unsigned and must be signed before installation on an iPhone or iPad."
+          } >> "$GITHUB_STEP_SUMMARY"

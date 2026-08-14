@@ -87,6 +87,14 @@ func _create_cue(cue_id: String) -> AudioStreamWAV:
 		"achievement_completed": [[523.25, 659.25, 783.99, 1046.5], 0.95, "sine"],
 		"harvest": [[150.0, 105.0], 0.12, "noise"],
 		"warning": [[220.0, 220.0, 164.8], 0.64, "square"],
+		"hand_pickup": [[420.0, 620.0], 0.14, "triangle"],
+		"hand_drop": [[520.0, 300.0], 0.13, "triangle"],
+		"cullis_sacrifice": [[180.0, 110.0, 260.0], 0.44, "triangle"],
+		"cullis_lightning": [[1180.0, 220.0, 860.0], 0.35, "noise"],
+		"cullis_overload": [[92.0, 61.0, 46.0], 0.95, "noise"],
+		"magic_circle_reveal": [[196.0, 293.7, 440.0, 587.3], 0.56, "sine"],
+		"lootbox_move": [[112.0, 86.0], 0.20, "noise"],
+		"lootbox_open": [[164.8, 329.6, 493.9, 659.3], 0.52, "triangle"],
 	}.get(cue_id, [[330.0], 0.16, "sine"])
 	return _synthesize(definition[0], float(definition[1]), String(definition[2]), false)
 
@@ -138,7 +146,7 @@ func _wave_sample(phase: float, wave: String, sample_index: int) -> float:
 			return sin(phase)
 
 func _bus_for_cue(cue_id: String) -> String:
-	if cue_id in ["ui_tap", "invalid_action", "goal_completed", "achievement_completed", "warning"]:
+	if cue_id in ["ui_tap", "invalid_action", "goal_completed", "achievement_completed", "warning", "hand_pickup", "hand_drop"]:
 		return "UI"
 	if cue_id.begins_with("building") or cue_id == "harvest":
 		return "Buildings"

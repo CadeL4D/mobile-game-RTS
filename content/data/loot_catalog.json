@@ -1,0 +1,33 @@
+{
+  "loot_tables": [
+    {
+      "id": "standard_lootbox",
+      "name": "Standard Loot Box",
+      "rolls": 3,
+      "outcomes": [
+        {"resource_id":"boards","amount":12,"weight":16},
+        {"resource_id":"cut_stone","amount":12,"weight":16},
+        {"resource_id":"crylithium","amount":6,"weight":11},
+        {"resource_id":"iron_ingot","amount":6,"weight":10},
+        {"resource_id":"gold_coins","amount":120,"weight":14},
+        {"resource_id":"god_dust","amount":2,"weight":8},
+        {"resource_id":"medkit","amount":2,"weight":7},
+        {"resource_id":"trashy_trash","amount":8,"weight":5,"pure_trash":true},
+        {"resource_id":"suspiciousy_trash","amount":5,"weight":3,"pure_trash":true}
+      ],
+      "balance_evidence": "VERIFY_RUNTIME",
+      "evidence": "VERIFY_RUNTIME"
+    }
+  ],
+  "loot_site_profiles": [
+    {
+      "id":"standard_magic_circles",
+      "site_count":6,
+      "key_sites":3,
+      "clear_ticks":80,
+      "minimum_start_distance":28,
+      "evidence":"VERIFY_RUNTIME",
+      "balance_evidence":"VERIFY_RUNTIME"
+    }
+  ]
+}

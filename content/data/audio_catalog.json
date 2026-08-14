@@ -18,6 +18,6 @@
     {"id":"credits_after_the_ruin","name":"After the Ruin","mood":"credits"}
   ],
   "audio_cues": [
-    {"id":"ui_tap","bus":"UI"},{"id":"invalid_action","bus":"UI"},{"id":"building_placed","bus":"Buildings"},{"id":"building_completed","bus":"Buildings"},{"id":"goal_completed","bus":"UI"},{"id":"achievement_completed","bus":"UI"},{"id":"harvest","bus":"Buildings"},{"id":"warning","bus":"UI"}
+    {"id":"ui_tap","bus":"UI"},{"id":"invalid_action","bus":"UI"},{"id":"building_placed","bus":"Buildings"},{"id":"building_completed","bus":"Buildings"},{"id":"goal_completed","bus":"UI"},{"id":"achievement_completed","bus":"UI"},{"id":"harvest","bus":"Buildings"},{"id":"warning","bus":"UI"},{"id":"hand_pickup","bus":"UI"},{"id":"hand_drop","bus":"UI"},{"id":"cullis_sacrifice","bus":"Combat"},{"id":"cullis_lightning","bus":"Combat"},{"id":"cullis_overload","bus":"Combat"},{"id":"magic_circle_reveal","bus":"Buildings"},{"id":"lootbox_move","bus":"Buildings"},{"id":"lootbox_open","bus":"Buildings"}
   ]
 }

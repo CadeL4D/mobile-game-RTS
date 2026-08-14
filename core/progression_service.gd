@@ -166,7 +166,8 @@ func export_state() -> Dictionary:
 		"perk_inventory": perk_inventory.duplicate(true),
 		"next_chest_xp": next_chest_xp,
 		"next_chest_id": next_chest_id,
-		"chest_rng_state": chest_rng.state,
+		# Preserve the complete 64-bit generator state through JSON saves.
+		"chest_rng_state": str(chest_rng.state),
 		"completed_tutorials": completed_tutorials.duplicate(true),
 		"tutorials_disabled": tutorials_disabled,
 	}

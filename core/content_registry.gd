@@ -13,6 +13,7 @@ const DATA_FILES := [
 	"res://content/data/actors_events_meta.json",
 	"res://content/data/audio_catalog.json",
 	"res://content/data/trade_catalog.json",
+	"res://content/data/loot_catalog.json",
 	"res://content/data/meta_progression.json",
 	"res://content/data/parity_ledger.json",
 ]
@@ -83,10 +84,49 @@ func _validate(parse_errors: Array[String]) -> Dictionary:
 		var actual: int = content.get(category, []).size()
 		if actual != expectations[category]:
 			errors.append("Expected %d %s, found %d" % [expectations[category], category, actual])
+	var resource_groups := {}
+	for resource_definition in content.get("resources", []):
+		resource_groups[String(resource_definition.get("group", ""))] = true
 	for building in content.get("buildings", []):
 		for job_id in building.get("jobs", []):
 			if not indexes.get("jobs", {}).has(StringName(job_id)):
 				errors.append("Building %s references missing job %s" % [building.id, job_id])
+		var settlement_range: Dictionary = building.get("settlement_range", {})
+		if not settlement_range.is_empty():
+			var base_range := int(settlement_range.get("base", 0))
+			var per_tier_range := int(settlement_range.get("per_tier", 0))
+			var maximum_range := int(settlement_range.get("maximum", base_range + per_tier_range * maxi(0, int(building.get("tiers", 1)) - 1)))
+			if base_range <= 0 or per_tier_range < 0 or maximum_range < base_range:
+				errors.append("Building %s has an invalid settlement range definition" % building.id)
+		var storage_profile: Dictionary = building.get("storage_profile", {})
+		if not storage_profile.is_empty():
+			var capacities: Array = storage_profile.get("capacity_by_tier", [])
+			if capacities.size() != int(building.get("tiers", 1)) or capacities.any(func(value: Variant) -> bool: return int(value) <= 0):
+				errors.append("Building %s storage profile must provide one positive capacity per tier" % building.id)
+			for resource_id in storage_profile.get("resources", []):
+				if not indexes.get("resources", {}).has(StringName(resource_id)):
+					errors.append("Building %s storage profile references missing resource %s" % [building.id, resource_id])
+			for resource_id in storage_profile.get("excluded_resources", []):
+				if not indexes.get("resources", {}).has(StringName(resource_id)):
+					errors.append("Building %s storage profile excludes missing resource %s" % [building.id, resource_id])
+			for group_id in storage_profile.get("accepted_groups", []):
+				if not resource_groups.has(String(group_id)):
+					errors.append("Building %s storage profile references unknown resource group %s" % [building.id, group_id])
+			if storage_profile.get("resources", []).is_empty() and storage_profile.get("accepted_groups", []).is_empty():
+				errors.append("Building %s storage profile does not accept any resources" % building.id)
+		var growth: Dictionary = building.get("growth", {})
+		if not growth.is_empty():
+			if String(growth.get("role", "")) != "crystal_motivator":
+				errors.append("Building %s has an unknown natural-growth role" % building.id)
+			for growth_field in ["range", "interval_ticks", "amount"]:
+				if int(growth.get(growth_field, 0)) <= 0:
+					errors.append("Building %s growth definition lacks positive %s" % [building.id, growth_field])
+		if String(building.get("category", "")) == "hostile":
+			var hostile: Dictionary = building.get("hostile", {})
+			if bool(building.get("player_placeable", true)):
+				errors.append("Hostile structure %s must not appear in the player build catalog" % building.id)
+			if String(hostile.get("role", "")) not in ["road", "wall", "tower", "fire_pit", "graveyard"]:
+				errors.append("Hostile structure %s has an invalid role" % building.id)
 		var tower: Dictionary = building.get("tower", {})
 		if String(building.get("category", "")) == "towers":
 			if tower.is_empty() or not tower.has("role") or not tower.has("range") or not tower.has("reload_ticks"):
@@ -111,6 +151,33 @@ func _validate(parse_errors: Array[String]) -> Dictionary:
 			for field_id in required_maintenance_fields:
 				if not service.has(field_id) or float(service.get(field_id, 0.0)) <= 0.0:
 					errors.append("Maintenance Building service lacks positive %s" % field_id)
+		var water: Dictionary = building.get("water", {})
+		if not water.is_empty():
+			var water_role := String(water.get("role", ""))
+			if water_role not in ["source", "rain_catcher", "purifier", "fountain"]:
+				errors.append("Water building %s has unknown role %s" % [building.id, water_role])
+			var clean_capacity := int(water.get("clean_capacity", 0)) + int(water.get("clean_capacity_per_tier", 0))
+			if clean_capacity <= 0:
+				errors.append("Water building %s lacks positive clean-water capacity" % building.id)
+			if water_role in ["source", "rain_catcher"] and int(water.get("generate_ticks", 0)) <= 0:
+				errors.append("Water source %s lacks positive generation time" % building.id)
+			if water_role == "purifier":
+				for field_id in ["surface_range", "dirty_capacity_per_tier", "process_ticks", "carry_amount"]:
+					if int(water.get(field_id, 0)) <= 0:
+						errors.append("Water Purifier lacks positive %s" % field_id)
+				if "water_masters" not in building.get("jobs", []):
+					errors.append("Water Purifier must expose Water Master jobs")
+			if water_role == "fountain" and (not bool(water.get("drinkable", false)) or int(water.get("service_range", 0)) <= 0):
+				errors.append("Fountain %s lacks drink access or service range" % building.id)
+		var cullis: Dictionary = building.get("cullis", {})
+		if String(building.id) == "cullis_gate":
+			if String(cullis.get("role", "")) != "sacrifice_gate":
+				errors.append("Cullis Gate lacks its sacrifice-gate role")
+			for field_id in ["cool_rate", "lightning_threshold", "overload_threshold", "lightning_damage", "explosion_damage", "explosion_radius", "instability_base", "instability_per_essence"]:
+				if int(cullis.get(field_id, 0)) <= 0:
+					errors.append("Cullis Gate lacks positive %s" % field_id)
+			if int(cullis.get("overload_threshold", 0)) <= int(cullis.get("lightning_threshold", 0)):
+				errors.append("Cullis Gate overload threshold must exceed its lightning threshold")
 	for actor in content.get("actors", []):
 		if String(actor.get("kind", "")) != "monster":
 			continue
@@ -135,6 +202,17 @@ func _validate(parse_errors: Array[String]) -> Dictionary:
 	for trade_good in content.get("trade_goods", []):
 		if not indexes.get("resources", {}).has(StringName(trade_good.get("resource_id", ""))):
 			errors.append("Trade good %s references missing resource %s" % [trade_good.id, trade_good.get("resource_id", "")])
+	for loot_table in content.get("loot_tables", []):
+		if int(loot_table.get("rolls", 0)) <= 0 or loot_table.get("outcomes", []).is_empty():
+			errors.append("Loot table %s lacks rolls or outcomes" % loot_table.id)
+		for outcome in loot_table.get("outcomes", []):
+			if not indexes.get("resources", {}).has(StringName(outcome.get("resource_id", ""))):
+				errors.append("Loot table %s references missing resource %s" % [loot_table.id, outcome.get("resource_id", "")])
+			if int(outcome.get("amount", 0)) <= 0 or int(outcome.get("weight", 0)) <= 0:
+				errors.append("Loot table %s has a non-positive amount or weight" % loot_table.id)
+	for loot_profile in content.get("loot_site_profiles", []):
+		if int(loot_profile.get("site_count", 0)) <= 0 or int(loot_profile.get("key_sites", -1)) < 0 or int(loot_profile.get("key_sites", 0)) > int(loot_profile.get("site_count", 0)):
+			errors.append("Loot site profile %s has invalid site/key counts" % loot_profile.id)
 	for region in content.get("regions", []):
 		for neighbor_id in region.get("adjacent", []):
 			if not indexes.get("regions", {}).has(StringName(neighbor_id)):

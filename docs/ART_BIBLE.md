@@ -63,6 +63,6 @@ Every sprite family must pass:
 4. Palette/alpha validation: no partial alpha, no unapproved colors, no filtering, no missing frames.
 5. Clean-room review: no traced contours, copied pixels, copied atlases, or exact source composition.
 
-The generated [sprite ledger](../art/sprite_ledger.json) is exhaustive and test-enforced. The current baseline contains 451 shipping records at `IN_REVIEW` and four historical records at `LEGACY_REMOVED`. `IN_REVIEW` means an original native-pixel runtime path now exists; it does **not** mean the sprite has passed the three comparison/mobile review rounds or is final art. Nothing advances to `APPROVED` without those reviews.
+The generated [sprite ledger](../art/sprite_ledger.json) is exhaustive and test-enforced. The current baseline contains 478 shipping records at `IN_REVIEW` and four historical records at `LEGACY_REMOVED`. `IN_REVIEW` means an original native-pixel runtime path now exists; it does **not** mean the sprite has passed the three comparison/mobile review rounds or is final art. Nothing advances to `APPROVED` without those reviews.
 
 The runtime baseline is code-native: `world_view.gd` draws world sprites at their logical pixel size, and `pixel_icon_factory.gd` creates 20/24-pixel UI textures. The earlier generated building images remain concept and pipeline evidence only. They must never be reintroduced into the runtime renderer without a new projection, density, clean-room, and mobile review.

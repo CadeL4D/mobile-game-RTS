@@ -15,7 +15,9 @@ BUILDING_STATES = [
     "foundation", "construction_25", "construction_50", "construction_75",
     "complete", "paused", "missing_worker", "missing_input", "full_output",
     "damaged_light", "damaged_medium", "damaged_severe", "burning",
-    "frozen", "corrupted", "reclaimed", "dismantling", "destroyed", "rubble",
+    "frozen", "electrified", "corrupted", "reclaimed", "abandoned",
+    "repair_requested", "repairing", "missing_repair_material",
+    "dismantle_requested", "dismantling", "destroyed", "rubble",
 ]
 ACTOR_CLIPS = [
     "idle", "walk", "run", "sleep", "eat", "drink", "carry", "work",

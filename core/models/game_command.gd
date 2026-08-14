@@ -16,6 +16,8 @@ enum Kind {
 	DESIGNATE_ANIMAL_CAPTURE,
 	DESIGNATE_ANIMAL_SLAUGHTER,
 	SET_BUILDING_WORK,
+	DESIGNATE_TERRAIN_WORK,
+	SET_STORAGE_FILTER,
 }
 
 var kind: Kind
@@ -47,8 +49,8 @@ static func cast_spell(tick: int, spell_id: StringName, cell: Vector2i, payload:
 	spell_payload["cell_y"] = cell.y
 	return GameCommand.new(Kind.CAST_SPELL, tick, spell_payload)
 
-static func upgrade_building(tick: int, building_entity_id: int) -> GameCommand:
-	return GameCommand.new(Kind.UPGRADE_BUILDING, tick, {"building_entity_id": building_entity_id})
+static func upgrade_building(tick: int, building_entity_id: int, branch: StringName = &"") -> GameCommand:
+	return GameCommand.new(Kind.UPGRADE_BUILDING, tick, {"building_entity_id": building_entity_id, "branch": String(branch)})
 
 static func set_recipe_policy(tick: int, building_entity_id: int, recipe_id: StringName, mode: StringName, target: int) -> GameCommand:
 	return GameCommand.new(Kind.SET_RECIPE_POLICY, tick, {
@@ -91,5 +93,20 @@ static func set_building_work(tick: int, building_entity_id: int, action: String
 	return GameCommand.new(Kind.SET_BUILDING_WORK, tick, {
 		"building_entity_id": building_entity_id,
 		"action": String(action),
+		"enabled": enabled,
+	})
+
+static func designate_terrain_work(tick: int, action: StringName, cell: Vector2i, enabled: bool = true) -> GameCommand:
+	return GameCommand.new(Kind.DESIGNATE_TERRAIN_WORK, tick, {
+		"action": String(action),
+		"cell_x": cell.x,
+		"cell_y": cell.y,
+		"enabled": enabled,
+	})
+
+static func set_storage_filter(tick: int, building_entity_id: int, resource_id: StringName, enabled: bool) -> GameCommand:
+	return GameCommand.new(Kind.SET_STORAGE_FILTER, tick, {
+		"building_entity_id": building_entity_id,
+		"resource_id": String(resource_id),
 		"enabled": enabled,
 	})

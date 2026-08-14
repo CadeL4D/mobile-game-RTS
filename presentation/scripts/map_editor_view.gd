@@ -16,6 +16,7 @@ var blueprint: RegionBlueprint
 var image: Image
 var texture: ImageTexture
 var paint_tile := RegionGenerator.Tile.GRASS
+var paint_elevation := -1
 var brush_radius := 3
 var painting := false
 
@@ -30,6 +31,10 @@ func set_blueprint(value: RegionBlueprint) -> void:
 
 func set_paint_tile(value: int) -> void:
 	paint_tile = value
+	paint_elevation = -1
+
+func set_paint_elevation(value: int) -> void:
+	paint_elevation = clampi(value, 1, 3)
 
 func set_brush_radius(value: int) -> void:
 	brush_radius = clampi(value, 1, 12)
@@ -40,7 +45,7 @@ func _rebuild_image() -> void:
 	image = Image.create(blueprint.width, blueprint.height, false, Image.FORMAT_RGBA8)
 	for y in blueprint.height:
 		for x in blueprint.width:
-			image.set_pixel(x, y, TILE_COLORS.get(blueprint.get_tile(Vector2i(x, y)), Color.MAGENTA))
+			image.set_pixel(x, y, _editor_color(Vector2i(x, y)))
 	texture = ImageTexture.create_from_image(image)
 	queue_redraw()
 
@@ -75,8 +80,21 @@ func _paint_at(local_position: Vector2) -> void:
 			var candidate := Vector2i(x, y)
 			if Vector2(candidate - cell).length() > brush_radius or candidate.x < 0 or candidate.y < 0 or candidate.x >= blueprint.width or candidate.y >= blueprint.height:
 				continue
-			blueprint.set_tile(candidate, paint_tile)
-			image.set_pixel(candidate.x, candidate.y, TILE_COLORS[paint_tile])
+			if paint_elevation >= 0:
+				if blueprint.get_tile(candidate) != RegionGenerator.Tile.DEEP_WATER:
+					blueprint.set_elevation(candidate, paint_elevation)
+			else:
+				blueprint.set_tile(candidate, paint_tile)
+			image.set_pixel(candidate.x, candidate.y, _editor_color(candidate))
 	texture.update(image)
 	blueprint_changed.emit()
 	queue_redraw()
+
+func _editor_color(cell: Vector2i) -> Color:
+	var color: Color = TILE_COLORS.get(blueprint.get_tile(cell), Color.MAGENTA)
+	var elevation := blueprint.get_elevation(cell)
+	if elevation >= 3:
+		return color.lightened(0.18)
+	if elevation == 2:
+		return color.lightened(0.09)
+	return color
