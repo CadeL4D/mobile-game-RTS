@@ -89,7 +89,8 @@ jobs:
         run: |
           set -euo pipefail
           set -o pipefail
-          "$GODOT_BIN" --headless --path . --offline \
+          mkdir -p build
+          "$GODOT_BIN" --headless --rendering-method gl_compatibility --path . --offline \
             --log-file build/github-ios-tests.log -- --run-tests \
             2>&1 | tee build/github-ios-tests-console.log
           if grep -E "SCRIPT ERROR|Parse Error|Compile Error|ERROR:" \
@@ -108,7 +109,7 @@ jobs:
           set -euo pipefail
           rm -rf build/ios
           mkdir -p build/ios
-          "$GODOT_BIN" --headless --path . \
+          "$GODOT_BIN" --headless --rendering-method gl_compatibility --path . \
             --log-file build/ios/godot-ios-export.log \
             --export-release "$IOS_PRESET" "build/ios/${APP_NAME}.xcodeproj"
           test -d "build/ios/${APP_NAME}.xcodeproj"
