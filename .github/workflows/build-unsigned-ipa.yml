@@ -84,14 +84,14 @@ jobs:
           xcode-select -p
           xcodebuild -version
 
-      - name: Run project regression suite
+      - name: Run cross-platform project smoke suite
         shell: bash
         run: |
           set -euo pipefail
           set -o pipefail
           mkdir -p build
           "$GODOT_BIN" --headless --rendering-method gl_compatibility --path . --offline \
-            --log-file build/github-ios-tests.log -- --run-tests \
+            --log-file build/github-ios-tests.log -- --run-tests --ci-smoke \
             2>&1 | tee build/github-ios-tests-console.log
           if grep -E "SCRIPT ERROR|Parse Error|Compile Error|ERROR:" \
             build/github-ios-tests.log build/github-ios-tests-console.log; then

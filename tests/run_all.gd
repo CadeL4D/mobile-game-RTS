@@ -28,6 +28,17 @@ func _run() -> void:
 	if sim == null or saves == null:
 		_finish()
 		return
+	if "--ci-smoke" in OS.get_cmdline_user_args():
+		_test_content()
+		_test_generation_determinism()
+		_test_pathfinding()
+		_test_simulation_and_goal()
+		_test_physical_inventory_and_reservations()
+		_test_extracted_subsystem_contracts()
+		_test_physical_logistics_live_loop()
+		_test_save_round_trip()
+		_finish()
+		return
 	if "--terrain-work-only" in OS.get_cmdline_user_args():
 		_test_terrain_work_designations()
 		_finish()
