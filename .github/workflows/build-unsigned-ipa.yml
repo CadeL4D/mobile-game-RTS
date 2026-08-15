@@ -72,12 +72,21 @@ jobs:
 
           rm -rf "$install_dir" "$unpacked_templates"
           mkdir -p "$install_dir" "$unpacked_templates" "$template_dir"
-          unzip -q "$cache_dir/Godot_v${GODOT_VERSION}_macos.universal.zip" -d "$install_dir"
+          # ditto, not unzip: unzip drops the executable bits and extended
+          # attributes inside a .app bundle, which leaves the editor's own
+          # frameworks unusable even though the main binary still answers
+          # --version.
+          ditto -x -k "$cache_dir/Godot_v${GODOT_VERSION}_macos.universal.zip" "$install_dir"
           unzip -q "$cache_dir/Godot_v${GODOT_VERSION}_export_templates.tpz" -d "$unpacked_templates"
           cp -R "$unpacked_templates/templates/." "$template_dir/"
 
           godot_bin="$install_dir/Godot.app/Contents/MacOS/Godot"
           chmod +x "$godot_bin"
+          # Gatekeeper refuses to load an unsigned quarantined bundle's libraries.
+          xattr -dr com.apple.quarantine "$install_dir/Godot.app" || true
+          echo "--- editor bundle ---"
+          ls -la "$install_dir/Godot.app/Contents/MacOS"
+          file "$godot_bin"
           "$godot_bin" --version
           echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
 
@@ -117,7 +126,7 @@ jobs:
             [[ -s "$cache_file" ]]
           }
 
-          if run_import "--import" --headless --import --path .; then
+          if run_import "--import" --headless --verbose --import --path .; then
             echo "Script class cache built by --import."
           elif run_import "--editor --quit" --headless --editor --quit --path .; then
             echo "Script class cache built by a headless editor pass."
