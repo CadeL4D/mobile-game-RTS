@@ -104,8 +104,15 @@ var gold := Color("f4dc62")
 
 func _ready() -> void:
 	if "--run-tests" in OS.get_cmdline_user_args():
-		var test_runner := preload("res://tests/run_all.gd").new()
-		add_child(test_runner)
+		# Resolved at runtime rather than with preload. The export presets strip
+		# tests/ from shipped builds, and a preload is resolved when this script is
+		# parsed no matter which branch it sits in, so preloading here failed to
+		# parse main.gd in every exported build and left the game on a black screen.
+		if ResourceLoader.exists("res://tests/run_all.gd"):
+			var test_runner_script: GDScript = load("res://tests/run_all.gd")
+			add_child(test_runner_script.new())
+		else:
+			push_error("--run-tests was passed but tests/ is not present in this build.")
 		return
 	_build_theme()
 	world_view = WORLD_VIEW.new()

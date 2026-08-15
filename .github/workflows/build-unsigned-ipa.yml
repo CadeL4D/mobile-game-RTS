@@ -146,6 +146,29 @@ jobs:
           echo "--- export output ---"
           ls -la build/ios
 
+      # The smoke suite runs from source, where everything the exclude filters
+      # strip is still on disk, so it cannot see a build that is broken only once
+      # packed. Running the exported pack catches that: a preload of a stripped
+      # path, or any missing resource, fails to parse at startup and ships as a
+      # black screen. Run from a directory with no project.godot, otherwise Godot
+      # loads the checkout instead of the pack and the check passes vacuously.
+      - name: Validate the exported pack
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          PACK="$PWD/build/ios/${APP_NAME}.pck"
+          test -s "$PACK" || (echo "the export produced no .pck" && exit 1)
+          WORKDIR="$RUNNER_TEMP/pack-validation"
+          rm -rf "$WORKDIR"
+          mkdir -p "$WORKDIR"
+          cd "$WORKDIR"
+          godot --headless --main-pack "$PACK" --quit-after 300 2>&1 | tee pack-run.log
+          if grep -E "SCRIPT ERROR|Parse Error|Compile Error|ERROR:" pack-run.log; then
+            echo "The exported pack fails at runtime even though the export step succeeded." >&2
+            exit 1
+          fi
+          echo "exported pack boots clean"
+
       - name: Build unsigned .app
         working-directory: build/ios
         timeout-minutes: 40

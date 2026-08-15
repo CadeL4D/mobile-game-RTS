@@ -32,6 +32,7 @@ func _run() -> void:
 		_test_simulation_and_goal()
 		_test_physical_inventory_and_reservations()
 		_test_extracted_subsystem_contracts()
+		_test_no_preload_of_excluded_paths()
 		_test_reference_parity_fixes()
 		_test_physical_logistics_live_loop()
 		_test_save_round_trip()
@@ -163,6 +164,7 @@ func _run() -> void:
 	_test_map_packages()
 	_test_physical_inventory_and_reservations()
 	_test_extracted_subsystem_contracts()
+	_test_no_preload_of_excluded_paths()
 	_test_reference_parity_fixes()
 	_test_physical_logistics_live_loop()
 	_test_save_round_trip()
@@ -2419,6 +2421,51 @@ func _test_physical_inventory_and_reservations() -> void:
 	_assert(atomic_inventory.consume_available(&"rock", 5) and atomic_inventory.get_total(&"rock") == 3, "Aggregate consumption must consume exactly the unreserved requested amount")
 	var migrated_tool = atomic_inventory.create_unique_item(&"iron_sword", &"weapon", 100, 100, &"hand", {}, PHYSICAL_INVENTORY.LocationState.CONTAINER, Vector2i.ZERO, 12)
 	_assert(migrated_tool != null and atomic_inventory.consume_available(&"iron_sword", 1) and atomic_inventory.get_total(&"iron_sword") == 0, "Authoritative consumption must support unique item instances migrated from older saves")
+
+func _test_no_preload_of_excluded_paths() -> void:
+	# preload() is resolved when a script is parsed, whatever branch it sits in, so
+	# a preload of anything the export presets strip makes that script fail to parse
+	# in every shipped build. That shipped once as a black screen on device: main.gd
+	# preloaded res://tests/run_all.gd, which the exclude filter removes.
+	var presets := FileAccess.get_file_as_string("res://export_presets.cfg")
+	_assert(not presets.is_empty(), "Export presets must be readable for the excluded-preload check")
+	var excluded_prefixes: Array[String] = []
+	for line in presets.split("\n"):
+		var trimmed := line.strip_edges()
+		if not trimmed.begins_with("exclude_filter="):
+			continue
+		for pattern in trimmed.substr(15).strip_edges().trim_prefix("\"").trim_suffix("\"").split(","):
+			var cleaned := pattern.strip_edges()
+			if cleaned.ends_with("/*"):
+				var prefix := "res://%s/" % cleaned.trim_suffix("/*")
+				if not prefix in excluded_prefixes:
+					excluded_prefixes.append(prefix)
+	_assert(not excluded_prefixes.is_empty(), "Export presets must declare directory exclude filters")
+
+	var pending: Array[String] = ["res://"]
+	var scanned := 0
+	while not pending.is_empty():
+		var directory: String = pending.pop_back()
+		for entry in DirAccess.get_directories_at(directory):
+			if entry.begins_with("."):
+				continue
+			pending.append(directory.path_join(entry))
+		for entry in DirAccess.get_files_at(directory):
+			if not entry.ends_with(".gd"):
+				continue
+			var script_path := directory.path_join(entry)
+			var is_excluded := false
+			for prefix in excluded_prefixes:
+				if script_path.begins_with(prefix):
+					is_excluded = true
+					break
+			if is_excluded:
+				continue
+			scanned += 1
+			var source := FileAccess.get_file_as_string(script_path)
+			for prefix in excluded_prefixes:
+				_assert(not source.contains("preload(\"%s" % prefix), "%s preloads from the excluded path %s, which fails to parse in every exported build" % [script_path, prefix])
+	_assert(scanned > 20, "The excluded-preload scan must actually reach the project's scripts (saw %d)" % scanned)
 
 func _test_reference_parity_fixes() -> void:
 	# Construction costs, hit points and storage taken straight from the reference
