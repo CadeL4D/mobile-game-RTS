@@ -1,5 +1,12 @@
 name: Build unsigned iOS IPA
 
+# Structure follows the proven pipeline in the embergard--nightkeep project.
+# Godot emits an Xcode PROJECT (application/export_project_only=true in
+# export_presets.cfg), xcodebuild compiles it with signing switched off, and the
+# resulting .app is zipped into the Payload/ layout that makes a .ipa. Letting
+# Godot produce the .ipa itself would invoke a signing step we have no
+# certificate for.
+
 on:
   workflow_dispatch:
   push:
@@ -18,134 +25,103 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GODOT_VERSION: 4.7-stable
-  GODOT_TEMPLATE_VERSION: 4.7.stable
-  IOS_PRESET: iOS
-  APP_NAME: Ruinward
+  # 4.7.1 is the current compatible maintenance release and carries the first
+  # round of critical 4.7 crash fixes. Keep editor and templates on one version.
+  GODOT_VERSION: "4.7.1"
+  GODOT_RELEASE: "stable"
+  IOS_PRESET: "iOS"
+  APP_NAME: "Ruinward"
 
 jobs:
   build-unsigned-ipa:
     name: Build unsigned IPA
-    runs-on: macos-15
-    timeout-minutes: 45
+    # Must be new enough to carry an iOS SDK matching the one Godot's official
+    # template was built against. On older images the link fails with missing
+    # symbols like _MTLTensorDomain and _NSProcessPerformanceProfileDefault —
+    # Metal 4 / iOS 26 APIs that do not exist in an earlier SDK.
+    runs-on: macos-26
+    timeout-minutes: 60
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Cache Godot downloads
+      # Pick the newest Xcode the image has rather than trusting the default.
+      # Printed loudly because an SDK mismatch surfaces much later as an
+      # inscrutable wall of undefined symbols.
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          echo "available:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || echo "  (none found)"
+          NEWEST="$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1 || true)"
+          if [ -n "$NEWEST" ]; then
+            sudo xcode-select -s "$NEWEST/Contents/Developer"
+          fi
+          echo "--- selected ---"
+          xcodebuild -version
+          echo "--- iOS SDKs ---"
+          xcodebuild -showsdks | grep -i ios || true
+
+      # The template archive is ~1 GB, so it is cached across runs. The key
+      # includes the Godot version, so bumping the engine correctly misses.
+      - name: Cache Godot export templates
+        id: cache-templates
         uses: actions/cache@v4
         with:
-          path: ${{ runner.temp }}/godot-downloads
-          key: godot-${{ runner.os }}-${{ runner.arch }}-${{ env.GODOT_VERSION }}
+          path: ~/Library/Application Support/Godot/export_templates
+          key: godot-templates-${{ env.GODOT_VERSION }}-${{ env.GODOT_RELEASE }}
 
-      - name: Download Godot and export templates
-        shell: bash
+      - name: Install Godot editor
         run: |
           set -euo pipefail
+          BASE="https://github.com/godotengine/godot-builds/releases/download"
+          TAG="${GODOT_VERSION}-${GODOT_RELEASE}"
+          curl -fL -o godot.zip "${BASE}/${TAG}/Godot_v${TAG}_macos.universal.zip"
+          unzip -q godot.zip
+          sudo mkdir -p /usr/local/bin
+          sudo ln -sf "$PWD/Godot.app/Contents/MacOS/Godot" /usr/local/bin/godot
+          godot --version
 
-          cache_dir="$RUNNER_TEMP/godot-downloads"
-          mkdir -p "$cache_dir"
-
-          editor_zip="$cache_dir/Godot_v${GODOT_VERSION}_macos.universal.zip"
-          templates_tpz="$cache_dir/Godot_v${GODOT_VERSION}_export_templates.tpz"
-          release_base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}"
-
-          if [[ ! -s "$editor_zip" ]]; then
-            curl --fail --location --retry 3 --output "$editor_zip" \
-              "$release_base/Godot_v${GODOT_VERSION}_macos.universal.zip"
-          fi
-          if [[ ! -s "$templates_tpz" ]]; then
-            curl --fail --location --retry 3 --output "$templates_tpz" \
-              "$release_base/Godot_v${GODOT_VERSION}_export_templates.tpz"
-          fi
-
-      - name: Install Godot and export templates
-        shell: bash
+      - name: Install iOS export templates
+        if: steps.cache-templates.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
+          BASE="https://github.com/godotengine/godot-builds/releases/download"
+          TAG="${GODOT_VERSION}-${GODOT_RELEASE}"
+          curl -fL -o templates.tpz "${BASE}/${TAG}/Godot_v${TAG}_export_templates.tpz"
+          unzip -q templates.tpz
+          DEST="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}"
+          mkdir -p "$DEST"
+          mv templates/* "$DEST/"
+          ls "$DEST" | head -20
 
-          cache_dir="$RUNNER_TEMP/godot-downloads"
-          install_dir="$RUNNER_TEMP/godot-editor"
-          unpacked_templates="$RUNNER_TEMP/godot-templates"
-          template_dir="$HOME/Library/Application Support/Godot/export_templates/${GODOT_TEMPLATE_VERSION}"
-
-          rm -rf "$install_dir" "$unpacked_templates"
-          mkdir -p "$install_dir" "$unpacked_templates" "$template_dir"
-          # ditto, not unzip: unzip drops the executable bits and extended
-          # attributes inside a .app bundle, which leaves the editor's own
-          # frameworks unusable even though the main binary still answers
-          # --version.
-          ditto -x -k "$cache_dir/Godot_v${GODOT_VERSION}_macos.universal.zip" "$install_dir"
-          unzip -q "$cache_dir/Godot_v${GODOT_VERSION}_export_templates.tpz" -d "$unpacked_templates"
-          cp -R "$unpacked_templates/templates/." "$template_dir/"
-
-          godot_bin="$install_dir/Godot.app/Contents/MacOS/Godot"
-          chmod +x "$godot_bin"
-          # Gatekeeper refuses to load an unsigned quarantined bundle's libraries.
-          xattr -dr com.apple.quarantine "$install_dir/Godot.app" || true
-          echo "--- editor bundle ---"
-          ls -la "$install_dir/Godot.app/Contents/MacOS"
-          file "$godot_bin"
-          "$godot_bin" --version
-          echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
-
-      - name: Show Xcode environment
-        shell: bash
+      # A fresh checkout has no .godot/, so no global script class cache exists.
+      # Running the project in that state makes every class_name symbol
+      # (GameCommand, RegionGenerator, ...) fail to resolve, main.gd fails to
+      # parse, the main scene never instantiates, and the process sits in an
+      # empty main loop until the job times out. The first editor pass often
+      # exits non-zero while still doing the work and a second settles anything
+      # it missed, so the step is judged on what it produced, not what it
+      # returned.
+      - name: Import project and build the script class cache
+        timeout-minutes: 20
         run: |
-          set -euo pipefail
-          xcode-select -p
-          xcodebuild -version
-
-      # A fresh checkout has no .godot/ directory, so no global script class
-      # cache exists. Running the project directly in that state makes every
-      # `class_name` symbol (GameCommand, RegionGenerator, ...) fail to resolve,
-      # main.gd fails to parse, the main scene never instantiates, and the
-      # process hangs until the job timeout. The editor's import pass builds
-      # that cache and must run first.
-      - name: Import project resources and build the script class cache
-        shell: bash
-        run: |
-          set -uo pipefail
-          mkdir -p build
-          cache_file=".godot/global_script_class_cache.cfg"
-
-          # The headless editor is noisy and its exit status is not a reliable
-          # signal, so each attempt is judged on whether the cache actually
-          # appeared rather than on what it returned.
-          run_import() {
-            local label="$1"
-            shift
-            echo "::group::Godot import attempt: $label"
-            set +e
-            timeout 900 "$GODOT_BIN" "$@" 2>&1 | tee -a build/github-ios-import.log
-            local status=${PIPESTATUS[0]}
-            set -e
-            echo "exit status: $status"
-            echo "::endgroup::"
-            [[ -s "$cache_file" ]]
-          }
-
-          if run_import "--import" --headless --verbose --import --path .; then
-            echo "Script class cache built by --import."
-          elif run_import "--editor --quit" --headless --editor --quit --path .; then
-            echo "Script class cache built by a headless editor pass."
-          else
-            echo "Godot did not produce $cache_file, so class_name symbols would not resolve." >&2
-            echo "--- .godot contents ---" >&2
-            ls -la .godot >&2 || echo "(no .godot directory)" >&2
-            echo "--- last 60 lines of the import log ---" >&2
-            tail -n 60 build/github-ios-import.log >&2 || true
+          godot --headless --editor --quit >/dev/null 2>&1 || true
+          godot --headless --editor --quit >/dev/null 2>&1 || true
+          if [ ! -s .godot/global_script_class_cache.cfg ]; then
+            echo "import produced no script class cache; class_name symbols would not resolve" >&2
+            ls -la .godot 2>&1 >&2 || echo "(no .godot directory)" >&2
             exit 1
           fi
+          echo "script class cache present"
 
       - name: Run cross-platform project smoke suite
-        shell: bash
+        timeout-minutes: 20
         run: |
           set -euo pipefail
-          set -o pipefail
           mkdir -p build
-          timeout 900 "$GODOT_BIN" --headless --path . \
+          godot --headless --path . \
             --log-file build/github-ios-tests.log -- --run-tests --ci-smoke \
             2>&1 | tee build/github-ios-tests-console.log
           if grep -E "SCRIPT ERROR|Parse Error|Compile Error|ERROR:" \
@@ -159,84 +135,71 @@ jobs:
           fi
 
       - name: Export Godot project to Xcode
-        shell: bash
+        timeout-minutes: 20
         run: |
           set -euo pipefail
           rm -rf build/ios
           mkdir -p build/ios
-          timeout 900 "$GODOT_BIN" --headless --path . \
+          godot --headless --path . \
             --log-file build/ios/godot-ios-export.log \
-            --export-release "$IOS_PRESET" "build/ios/${APP_NAME}.xcodeproj"
-          test -d "build/ios/${APP_NAME}.xcodeproj"
-          test -f "build/ios/${APP_NAME}.xcodeproj/project.pbxproj"
-          test -d "build/ios/${APP_NAME}"
-          xcodebuild -list -project "build/ios/${APP_NAME}.xcodeproj"
+            --export-release "${IOS_PRESET}" "build/ios/${APP_NAME}.xcodeproj"
+          echo "--- export output ---"
+          ls -la build/ios
 
-      - name: Build unsigned iOS archive
-        shell: bash
+      - name: Build unsigned .app
+        working-directory: build/ios
+        timeout-minutes: 40
         run: |
           set -euo pipefail
-          set -o pipefail
-
-          xcodebuild archive \
-            -project "build/ios/${APP_NAME}.xcodeproj" \
-            -scheme "$APP_NAME" \
+          PROJ="$(ls -d *.xcodeproj | head -1)"
+          SCHEME="$(basename "$PROJ" .xcodeproj)"
+          echo "building $PROJ (scheme $SCHEME)"
+          xcodebuild \
+            -project "$PROJ" \
+            -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -archivePath "build/ios/${APP_NAME}.xcarchive" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            CODE_SIGNING_REQUIRED=NO \
+            -derivedDataPath ./DerivedData \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee build/ios/xcodebuild.log
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            build
 
-          test -d "build/ios/${APP_NAME}.xcarchive"
-
+      # A .ipa is just a zip with the .app inside a top-level Payload/ folder.
       - name: Package and verify unsigned IPA
         id: package
-        shell: bash
+        working-directory: build/ios
         run: |
           set -euo pipefail
+          APP="$(find ./DerivedData -name '*.app' -type d | head -1)"
+          test -n "$APP" || (echo "no .app was produced" && exit 1)
+          echo "packaging $APP"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP" Payload/
 
-          archive_apps="build/ios/${APP_NAME}.xcarchive/Products/Applications"
-          source_app="$(find "$archive_apps" -maxdepth 1 -type d -name '*.app' -print -quit)"
-          if [[ -z "$source_app" ]]; then
-            echo "No application bundle was produced by xcodebuild." >&2
-            exit 1
-          fi
-
-          package_dir="$RUNNER_TEMP/unsigned-ipa"
-          ipa_path="$PWD/build/ios/${APP_NAME}-unsigned.ipa"
-          rm -rf "$package_dir"
-          mkdir -p "$package_dir/Payload"
-          ditto "$source_app" "$package_dir/Payload/$(basename "$source_app")"
-
-          packaged_app="$package_dir/Payload/$(basename "$source_app")"
-          find "$packaged_app" -type d -name _CodeSignature -prune -exec rm -rf {} +
-          find "$packaged_app" -type f -name embedded.mobileprovision -delete
-
-          if codesign --verify --deep --strict "$packaged_app" >/dev/null 2>&1; then
+          PACKAGED="Payload/$(basename "$APP")"
+          find "$PACKAGED" -type d -name _CodeSignature -prune -exec rm -rf {} +
+          find "$PACKAGED" -type f -name embedded.mobileprovision -delete
+          if codesign --verify --deep --strict "$PACKAGED" >/dev/null 2>&1; then
             echo "Application unexpectedly contains a valid code signature." >&2
             exit 1
           fi
+          plutil -lint "$PACKAGED/Info.plist"
+          EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PACKAGED/Info.plist")"
+          test -x "$PACKAGED/$EXECUTABLE"
+          lipo -info "$PACKAGED/$EXECUTABLE"
 
-          plutil -lint "$packaged_app/Info.plist"
-          executable_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$packaged_app/Info.plist")"
-          test -x "$packaged_app/$executable_name"
-          lipo -info "$packaged_app/$executable_name"
-
-          (
-            cd "$package_dir"
-            /usr/bin/zip -qry "$ipa_path" Payload
-          )
-          unzip -tq "$ipa_path"
-
-          checksum="$(shasum -a 256 "$ipa_path" | awk '{print $1}')"
-          echo "$checksum  $(basename "$ipa_path")" > "${ipa_path}.sha256"
-          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+          IPA="${APP_NAME}-unsigned.ipa"
+          rm -f "$IPA"
+          zip -qry "$IPA" Payload
+          unzip -tq "$IPA"
+          CHECKSUM="$(shasum -a 256 "$IPA" | awk '{print $1}')"
+          echo "$CHECKSUM  $IPA" > "${IPA}.sha256"
+          echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
+          ls -lh "$IPA"
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
@@ -258,7 +221,9 @@ jobs:
           body: |
             Automated unsigned iOS development build.
 
-            This IPA is intentionally unsigned. It must be signed with an Apple development or distribution identity before it can be installed on an iPhone or iPad.
+            This IPA is intentionally unsigned. It must be re-signed with your own
+            Apple account by a sideloader (AltStore, Sideloadly, TrollStore) before
+            it can be installed on an iPhone or iPad.
           files: |
             build/ios/Ruinward-unsigned.ipa
             build/ios/Ruinward-unsigned.ipa.sha256
@@ -267,18 +232,16 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: Ruinward-ios-failure-logs-${{ github.run_number }}
           path: |
-            build/github-ios-import.log
             build/github-ios-tests.log
             build/github-ios-tests-console.log
             build/ios/*.log
+          name: Ruinward-ios-failure-logs-${{ github.run_number }}
           if-no-files-found: ignore
           retention-days: 7
 
       - name: Write build summary
         if: success()
-        shell: bash
         run: |
           {
             echo "## Unsigned iOS build"
@@ -287,5 +250,5 @@ jobs:
             echo
             echo "SHA-256: \`${{ steps.package.outputs.checksum }}\`"
             echo
-            echo "This IPA is intentionally unsigned and must be signed before installation on an iPhone or iPad."
+            echo "This IPA is intentionally unsigned and must be re-signed by a sideloader before installation."
           } >> "$GITHUB_STEP_SUMMARY"
