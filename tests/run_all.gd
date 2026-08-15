@@ -33,6 +33,7 @@ func _run() -> void:
 		_test_physical_inventory_and_reservations()
 		_test_extracted_subsystem_contracts()
 		_test_no_preload_of_excluded_paths()
+		_test_touch_placement_gestures()
 		_test_reference_parity_fixes()
 		_test_physical_logistics_live_loop()
 		_test_save_round_trip()
@@ -165,6 +166,7 @@ func _run() -> void:
 	_test_physical_inventory_and_reservations()
 	_test_extracted_subsystem_contracts()
 	_test_no_preload_of_excluded_paths()
+	_test_touch_placement_gestures()
 	_test_reference_parity_fixes()
 	_test_physical_logistics_live_loop()
 	_test_save_round_trip()
@@ -2421,6 +2423,32 @@ func _test_physical_inventory_and_reservations() -> void:
 	_assert(atomic_inventory.consume_available(&"rock", 5) and atomic_inventory.get_total(&"rock") == 3, "Aggregate consumption must consume exactly the unreserved requested amount")
 	var migrated_tool = atomic_inventory.create_unique_item(&"iron_sword", &"weapon", 100, 100, &"hand", {}, PHYSICAL_INVENTORY.LocationState.CONTAINER, Vector2i.ZERO, 12)
 	_assert(migrated_tool != null and atomic_inventory.consume_available(&"iron_sword", 1) and atomic_inventory.get_total(&"iron_sword") == 0, "Authoritative consumption must support unique item instances migrated from older saves")
+
+func _test_touch_placement_gestures() -> void:
+	# A phone has no hover, so the only way to aim a building or spell is to drag
+	# the ghost. That gesture must still commit when the finger lifts.
+	var view = preload("res://presentation/scripts/world_view.gd").new()
+
+	view.pending_building_id = &""
+	view.pending_spell_id = &""
+	view.pending_terrain_action = &""
+	_assert(view.touch_commits_action(4.0), "A still tap must select through")
+	_assert(not view.touch_commits_action(120.0), "A bare drag must pan the camera rather than select")
+
+	view.pending_building_id = &"camp"
+	_assert(view.touch_commits_action(4.0), "Tapping with a building armed must place it")
+	_assert(view.touch_commits_action(240.0), "Dragging the ghost into position must place the building where the finger lifts")
+
+	view.pending_building_id = &""
+	view.pending_spell_id = &"lightning_bolt"
+	_assert(view.touch_commits_action(240.0), "Dragging a targeted god power must cast it where the finger lifts")
+
+	# Brush gestures paint continuously during the drag, so the release must not
+	# apply a second time at the end of the stroke.
+	view.pending_spell_id = &""
+	view.pending_terrain_action = &"clear"
+	_assert(not view.touch_commits_action(240.0), "A terrain brush stroke must not re-apply on release")
+	view.free()
 
 func _test_no_preload_of_excluded_paths() -> void:
 	# preload() is resolved when a script is parsed, whatever branch it sits in, so

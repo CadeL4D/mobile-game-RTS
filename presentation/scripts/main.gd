@@ -311,8 +311,17 @@ func _apply_responsive_layout() -> void:
 	if world_top_panel and world_inspector_panel:
 		world_browse_button.visible = touch_layout
 		for region_node in world_region_nodes:
-			region_node.mouse_filter = Control.MOUSE_FILTER_IGNORE if touch_layout else Control.MOUSE_FILTER_STOP
+			# The map markers stay tappable on touch and grow to a full touch target
+			# instead of being switched off. Ignoring input here left the markers
+			# looking pressable while silently doing nothing, so a region could only
+			# be changed through the browser list.
+			region_node.mouse_filter = Control.MOUSE_FILTER_STOP
 			region_node.focus_mode = Control.FOCUS_NONE if touch_layout else Control.FOCUS_ALL
+			var marker_half := (touch_target_height * 0.5) if touch_layout else 17.0
+			region_node.offset_left = -marker_half
+			region_node.offset_top = -marker_half
+			region_node.offset_right = marker_half
+			region_node.offset_bottom = marker_half
 		if phone_layout:
 			world_top_panel.offset_left = left + 10.0
 			world_top_panel.offset_right = -right - 10.0

@@ -582,7 +582,7 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 		touch_points[event.index] = {"position": event.position, "start": event.position, "travel": 0.0}
 	else:
 		var touch: Dictionary = touch_points.get(event.index, {})
-		if touch_points.size() == 1 and float(touch.get("travel", 0.0)) < 18.0:
+		if touch_points.size() == 1 and touch_commits_action(float(touch.get("travel", 0.0))):
 			var target_cell := _screen_to_cell(event.position)
 			var now_msec := Time.get_ticks_msec()
 			var is_double_tap := (now_msec - last_tap_msec < 300) and (target_cell == last_tap_cell)
@@ -631,6 +631,11 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 			if last_pinch_distance > 0.0:
 				_zoom_at((Vector2(positions[0]) + Vector2(positions[1])) * 0.5, distance / last_pinch_distance)
 			last_pinch_distance = distance
+			if not pending_building_id.is_empty() or not pending_spell_id.is_empty():
+				# One finger aims while a placement is armed, so two fingers have to
+				# be able to reach the rest of the map without disarming it. Each
+				# finger reports its own travel, hence the half step.
+				camera.position -= event.relative / camera.zoom.x * 0.5
 	queue_redraw()
 	get_viewport().set_input_as_handled()
 
@@ -676,6 +681,20 @@ func _attempt_brush_placement(cell: Vector2i) -> void:
 		return
 	brush_cells_this_gesture[key] = true
 	_attempt_placement(cell)
+
+const TAP_TRAVEL_SLOP := 18.0
+
+func touch_commits_action(travel: float) -> bool:
+	# A touch screen has no hover, so an armed building or spell is aimed by
+	# dragging the ghost and committed where the finger lifts, however far it
+	# travelled. Judging those gestures by tap slop alone discarded them and left
+	# the target unmovable, making the tutorial's "move the ghost, then tap to
+	# place it" impossible on a phone. Brush actions already paint during the drag,
+	# and a plain selection tap still has to stay put.
+	if travel < TAP_TRAVEL_SLOP:
+		return true
+	var aiming := not pending_building_id.is_empty() or not pending_spell_id.is_empty()
+	return aiming and not _is_brush_action()
 
 func _is_brush_action() -> bool:
 	return _is_brush_placement() or not pending_terrain_action.is_empty()
