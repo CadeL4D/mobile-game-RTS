@@ -3,6 +3,10 @@ name: Build unsigned iOS IPA
 on:
   workflow_dispatch:
   push:
+    # Building main as well as tags means a broken pipeline is caught before a
+    # version number is spent on it. Only tag builds publish a prerelease.
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -93,13 +97,36 @@ jobs:
       - name: Import project resources and build the script class cache
         shell: bash
         run: |
-          set -euo pipefail
-          set -o pipefail
+          set -uo pipefail
           mkdir -p build
-          timeout 900 "$GODOT_BIN" --headless --import --path . \
-            2>&1 | tee build/github-ios-import.log
-          if [[ ! -s .godot/global_script_class_cache.cfg ]]; then
-            echo "Godot did not produce .godot/global_script_class_cache.cfg; class_name symbols would not resolve." >&2
+          cache_file=".godot/global_script_class_cache.cfg"
+
+          # The headless editor is noisy and its exit status is not a reliable
+          # signal, so each attempt is judged on whether the cache actually
+          # appeared rather than on what it returned.
+          run_import() {
+            local label="$1"
+            shift
+            echo "::group::Godot import attempt: $label"
+            set +e
+            timeout 900 "$GODOT_BIN" "$@" 2>&1 | tee -a build/github-ios-import.log
+            local status=${PIPESTATUS[0]}
+            set -e
+            echo "exit status: $status"
+            echo "::endgroup::"
+            [[ -s "$cache_file" ]]
+          }
+
+          if run_import "--import" --headless --import --path .; then
+            echo "Script class cache built by --import."
+          elif run_import "--editor --quit" --headless --editor --quit --path .; then
+            echo "Script class cache built by a headless editor pass."
+          else
+            echo "Godot did not produce $cache_file, so class_name symbols would not resolve." >&2
+            echo "--- .godot contents ---" >&2
+            ls -la .godot >&2 || echo "(no .godot directory)" >&2
+            echo "--- last 60 lines of the import log ---" >&2
+            tail -n 60 build/github-ios-import.log >&2 || true
             exit 1
           fi
 
