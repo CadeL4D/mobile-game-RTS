@@ -16,27 +16,15 @@ const TASK_BOARD := preload("res://core/simulation/task_board.gd")
 const GRID_PATHFINDER := preload("res://core/simulation/grid_pathfinder.gd")
 const PHYSICAL_INVENTORY := preload("res://core/simulation/physical_inventory.gd")
 const RESERVATION_SERVICE := preload("res://core/simulation/reservation_service.gd")
-const LOGISTICS_SYSTEM := preload("res://core/simulation/logistics_system.gd")
 const TASK_SYSTEM := preload("res://core/simulation/task_system.gd")
-const PRODUCTION_SYSTEM := preload("res://core/simulation/production_system.gd")
-const NEEDS_SYSTEM := preload("res://core/simulation/needs_system.gd")
-const POPULATION_SYSTEM := preload("res://core/simulation/population_system.gd")
-const ANIMAL_SYSTEM := preload("res://core/simulation/animal_system.gd")
 const TRADE_SYSTEM := preload("res://core/simulation/trade_system.gd")
-const COMBAT_SYSTEM := preload("res://core/simulation/combat_system.gd")
 const CORRUPTION_SYSTEM := preload("res://core/simulation/corruption_system.gd")
 const SPELL_SYSTEM := preload("res://core/simulation/spell_system.gd")
 
 var inventory = PHYSICAL_INVENTORY.new()
 var reservations = RESERVATION_SERVICE.new()
-var logistics = LOGISTICS_SYSTEM.new()
 var task_system = TASK_SYSTEM.new()
-var production = PRODUCTION_SYSTEM.new()
-var needs_system = NEEDS_SYSTEM.new()
-var population_system = POPULATION_SYSTEM.new()
-var animal_system = ANIMAL_SYSTEM.new()
 var trade_system = TRADE_SYSTEM.new()
-var combat_system = COMBAT_SYSTEM.new()
 var corruption_system = CORRUPTION_SYSTEM.new()
 var spell_system = SPELL_SYSTEM.new()
 
@@ -70,6 +58,9 @@ var monsters: Array[Dictionary] = []
 var ghosts: Array[Dictionary] = []
 var corruption_cells: Dictionary = {}
 var terrain_effects: Dictionary = {}
+# Navigation caches rebuilt from the building list; never saved.
+var road_speed_cells: Dictionary = {}
+var phase_blocking_cells: Dictionary = {}
 var terrain_work: Dictionary = {}
 var buildings: Array[Dictionary] = []
 var hostile_structures: Array[Dictionary] = []
@@ -80,6 +71,11 @@ var doggo_house_capacity := 0
 var building_limit := 0
 var build_range := 0
 var ancillary_limit := 0
+# Town-centre tier bonuses and the summed land desirability of every completed
+# building, both recalculated by _recalculate_settlement_support().
+var global_speed_bonus := 0.0
+var building_speed_bonus := 0.0
+var land_desirability := 0
 var goals: Dictionary = {}
 var messages: Array[String] = []
 var god_xp := 0
@@ -525,12 +521,25 @@ func _settlement_range_sources() -> Array[Dictionary]:
 		var range := get_building_settlement_range(building)
 		if range <= 0:
 			continue
+		var definition := ContentRegistry.get_by_id(&"buildings", StringName(building.get("definition_id", "")))
 		result.append({
 			"building_id": int(building.id),
 			"center": Vector2(float(building.x) + float(building.width) * 0.5, float(building.y) + float(building.height) * 0.5),
 			"range": range,
+			"resistance": maxf(1.0, float(definition.get("corruption_resistance", 1))),
 		})
 	return result
+
+func get_global_speed_multiplier() -> float:
+	return 1.0 + global_speed_bonus
+
+func get_building_speed_multiplier() -> float:
+	return 1.0 + building_speed_bonus
+
+func get_settlement_desirability_factor() -> float:
+	# Desirability shifts nomad arrivals by at most a factor of two either way, so a
+	# tower-heavy settlement still grows, just more slowly than a comfortable one.
+	return clampf(1.0 + float(land_desirability) * 0.02, 0.5, 2.0)
 
 func _corruption_resistance_at(cell: Vector2i, sources: Array[Dictionary]) -> float:
 	var resistance := 0.0
@@ -539,7 +548,9 @@ func _corruption_resistance_at(cell: Vector2i, sources: Array[Dictionary]) -> fl
 		var range := float(source.range)
 		var distance := Vector2(source.center).distance_to(position)
 		if distance <= range:
-			resistance = maxf(resistance, range - distance + 1.0)
+			# Buildings that the catalogue rates as corruption resistant hold their
+			# ground harder than a bare light source of the same reach.
+			resistance = maxf(resistance, (range - distance + 1.0) * float(source.get("resistance", 1.0)))
 	return resistance
 
 func _configure_water_runtime(building: Dictionary, definition: Dictionary) -> void:
@@ -1515,7 +1526,10 @@ func _update_nomads() -> void:
 	var camp := _operational_town_center()
 	if not camp.is_empty() and nomads.is_empty() and tick >= next_nomad_tick:
 		_spawn_nomad_group(camp)
-		next_nomad_tick = tick + rng.randi_range(TICKS_PER_DAY * 3, TICKS_PER_DAY * 5)
+		# A pleasant, well-appointed settlement draws newcomers sooner; ranger lodges,
+		# fire pits and towers make it less inviting. A larger town centre also helps.
+		var interval := float(rng.randi_range(TICKS_PER_DAY * 3, TICKS_PER_DAY * 5))
+		next_nomad_tick = tick + maxi(TICKS_PER_DAY, roundi(interval / get_settlement_desirability_factor()))
 	var joined: Array[Dictionary] = []
 	var lost: Array[Dictionary] = []
 	var anchor := _settlement_anchor()
@@ -1744,6 +1758,8 @@ func _move_villager_toward(villager: Dictionary, target: Vector2, step: float, h
 	var movement_cell := Vector2i(floori(position.x), floori(position.y))
 	step *= _road_speed_multiplier(movement_cell, hostile_route)
 	step *= _terrain_effect_speed_multiplier(movement_cell)
+	if not hostile_route:
+		step *= get_global_speed_multiplier()
 	villager.target_x = target.x
 	villager.target_y = target.y
 	if position.distance_to(target) <= 0.95:
@@ -1779,14 +1795,11 @@ func _move_villager_toward(villager: Dictionary, target: Vector2, step: float, h
 	return false
 
 func _road_speed_multiplier(cell: Vector2i, hostile_actor: bool = false) -> float:
-	for building in buildings:
-		if not bool(building.get("completed", false)) or bool(building.get("destroyed", false)) or String(building.get("category", "")) != "roads":
-			continue
-		if Rect2i(Vector2i(int(building.x), int(building.y)), Vector2i(int(building.width), int(building.height))).has_point(cell):
-			return {
-				"path": 1.05, "log_road": 1.12, "cobble_log_road": 1.20,
-				"cobble_board_road": 1.28, "cut_stone_board_road": 1.36,
-			}.get(String(building.definition_id), 1.0)
+	# Road bonuses come from the building catalogue and are indexed by cell, so a
+	# movement step never rescans the whole settlement.
+	var key := _cell_key(cell)
+	if road_speed_cells.has(key):
+		return float(road_speed_cells[key])
 	if hostile_actor:
 		for structure in hostile_structures:
 			if bool(structure.get("completed", false)) and not bool(structure.get("destroyed", false)) and String(structure.get("hostile_role", "")) == "road":
@@ -1812,17 +1825,24 @@ func _apply_navigation_building(building: Dictionary) -> void:
 		return
 	var category := String(building.get("category", ""))
 	var definition_id := String(building.get("definition_id", ""))
+	var definition := ContentRegistry.get_by_id(&"buildings", StringName(definition_id))
 	for y in range(int(building.y), int(building.y) + int(building.height)):
 		for x in range(int(building.x), int(building.x) + int(building.width)):
 			var cell := Vector2i(x, y)
 			if (category == "walls" and not definition_id.ends_with("gate")) or (category == "god_structure" and String(building.get("god_role", "")) == "wall"):
 				pathfinder.set_dynamic_solid(cell, true)
 				hostile_pathfinder.set_dynamic_solid(cell, true)
+				if bool(definition.get("blocks_phasing", false)):
+					phase_blocking_cells[_cell_key(cell)] = int(building.id)
 			elif category == "roads":
-				var weight: float = {
-					"path": 0.95, "log_road": 0.82, "cobble_log_road": 0.70,
-					"cobble_board_road": 0.60, "cut_stone_board_road": 0.50,
-				}.get(definition_id, 1.0)
+				# A road that is not maintained decays to debris, which keeps only the
+				# reference game's residual 10 % bonus.
+				var road: Dictionary = definition.get("road", {})
+				var bonus := float(road.get("speed_bonus", 0.0))
+				if String(building.get("road_state", "maintained")) == "debris":
+					bonus = float(road.get("debris_speed_bonus", 0.10))
+				road_speed_cells[_cell_key(cell)] = 1.0 + bonus
+				var weight := 1.0 / (1.0 + bonus)
 				pathfinder.set_travel_weight(cell, weight)
 				hostile_pathfinder.set_travel_weight(cell, weight)
 
@@ -1845,6 +1865,8 @@ func _apply_navigation_hostile_structure(structure: Dictionary) -> void:
 func _refresh_navigation_buildings() -> void:
 	pathfinder.configure(blueprint)
 	hostile_pathfinder.configure(blueprint)
+	road_speed_cells.clear()
+	phase_blocking_cells.clear()
 	for building in buildings:
 		_apply_navigation_building(building)
 	for structure in hostile_structures:
@@ -1908,7 +1930,7 @@ func _work_task(villager: Dictionary, task: Dictionary) -> void:
 			if building.is_empty() or bool(building.completed):
 				_release_villager_task(villager)
 				return
-			building.progress = mini(int(building.build_time), int(building.progress) + 2)
+			building.progress = mini(int(building.build_time), int(building.progress) + maxi(1, roundi(2.0 * get_building_speed_multiplier())))
 		"repair":
 			var repair_building := _find_building(int(task.target_id))
 			if repair_building.is_empty() or bool(repair_building.get("destroyed", false)) or bool(repair_building.get("dismantle_designated", false)) or int(repair_building.health) >= int(repair_building.max_health):
@@ -3013,10 +3035,14 @@ func _recalculate_settlement_support() -> void:
 	building_limit = 0
 	build_range = 0
 	ancillary_limit = 0
+	global_speed_bonus = 0.0
+	building_speed_bonus = 0.0
+	land_desirability = 0
 	for building in buildings:
 		if not bool(building.completed) or bool(building.get("destroyed", false)):
 			continue
 		var definition := ContentRegistry.get_by_id(&"buildings", StringName(building.definition_id))
+		land_desirability += int(definition.get("land_desirability", 0))
 		var housing_value := int(definition.get("housing_capacity", 0))
 		if String(building.definition_id) == "housing" and housing_value > 0:
 			var housing_branch := String(building.get("housing_branch", "standard"))
@@ -3034,6 +3060,8 @@ func _recalculate_settlement_support() -> void:
 			building_limit = int(town_tier.get("building_limit", 8))
 			build_range = int(town_tier.get("range", 32))
 			ancillary_limit = int(town_tier.get("ancillary_limit", 1))
+			global_speed_bonus = float(town_tier.get("global_speed_bonus", 0.0))
+			building_speed_bonus = float(town_tier.get("building_speed_bonus", 0.0))
 			continue
 		for job_id in definition.get("jobs", []):
 			if jobs.has(String(job_id)):
@@ -3418,7 +3446,7 @@ func _golem_work_construction(golem: Dictionary) -> void:
 		return
 	var target_position := Vector2(float(target.x) + float(target.width) * 0.5, float(target.y) + float(target.height) * 0.5)
 	if _move_villager_toward(golem, target_position, float(golem.speed)):
-		target.progress = mini(int(target.build_time), int(target.progress) + 3)
+		target.progress = mini(int(target.build_time), int(target.progress) + maxi(1, roundi(3.0 * get_building_speed_multiplier())))
 		golem.state = "building"
 	else:
 		golem.state = "traveling_to_build"
@@ -3521,7 +3549,15 @@ func _update_monsters() -> void:
 			continue
 		var target_position := Vector2(float(target.x), float(target.y))
 		var actor := ContentRegistry.get_by_id(&"actors", StringName(monster.definition_id))
-		var reached := _move_spectre_toward(monster, target_position, float(monster.speed)) if bool(actor.get("crosses_walls", false)) else _move_villager_toward(monster, target_position, float(monster.speed), true)
+		var phases := bool(actor.get("crosses_walls", false))
+		if phases:
+			# Phasing actors drift through ordinary wood and stone walls, but a curtain
+			# wall stops them dead and becomes the thing they have to break instead.
+			var barrier := _phase_barrier_between(monster, target_position)
+			if not barrier.is_empty():
+				target = {"kind": "building", "id": int(barrier.id), "x": float(barrier.x) + float(barrier.width) * 0.5, "y": float(barrier.y) + float(barrier.height) * 0.5}
+				target_position = Vector2(float(target.x), float(target.y))
+		var reached := _move_spectre_toward(monster, target_position, float(monster.speed)) if phases else _move_villager_toward(monster, target_position, float(monster.speed), true)
 		if reached:
 			monster.state = "attacking"
 			if int(monster.attack_cooldown) > 0:
@@ -3746,7 +3782,16 @@ func _spawn_monsters_if_due() -> void:
 	if corruption_keys.is_empty():
 		return
 	corruption_keys.sort()
-	var types := ["headless", "small_slime", "slime", "blood_slime", "zombie", "skeleton", "spectre", "fire_elemental", "drone"]
+	# Each species unlocks on its own day, so the threat escalates from slimes and
+	# zombies through skeletons to late spectres and fire elementals.
+	var day := tick / TICKS_PER_DAY + 1
+	var types: Array[String] = []
+	for candidate in ["headless", "small_slime", "slime", "blood_slime", "zombie", "skeleton", "spectre", "fire_elemental", "drone"]:
+		var actor := ContentRegistry.get_by_id(&"actors", StringName(candidate))
+		if day >= int(actor.get("spawn_day", 0)):
+			types.append(candidate)
+	if types.is_empty():
+		return
 	var count := clampi(ceili(pressure), 1, 4)
 	for spawn_index in count:
 		var spawn_cell := _cell_from_key(String(corruption_keys[rng.randi_range(0, corruption_keys.size() - 1)]))
@@ -3852,6 +3897,28 @@ func _update_actor_status_effects(actor: Dictionary) -> void:
 		status_effects.erase(status_id)
 	actor.status_effects = status_effects
 
+func _phase_barrier_between(monster: Dictionary, target: Vector2) -> Dictionary:
+	# Walk the straight-line route a phasing actor would take and return the first
+	# curtain wall standing in it. Sampling per half cell cannot skip a one-cell wall.
+	if phase_blocking_cells.is_empty():
+		return {}
+	var origin := Vector2(float(monster.x), float(monster.y))
+	var span := target - origin
+	var distance := span.length()
+	if distance <= 0.01:
+		return {}
+	var direction := span / distance
+	var travelled := 0.0
+	while travelled <= distance:
+		var cell := Vector2i(floori(origin.x + direction.x * travelled), floori(origin.y + direction.y * travelled))
+		var key := _cell_key(cell)
+		if phase_blocking_cells.has(key):
+			var barrier := _find_building(int(phase_blocking_cells[key]))
+			if not barrier.is_empty() and not bool(barrier.get("destroyed", false)):
+				return barrier
+		travelled += 0.5
+	return {}
+
 func _move_spectre_toward(monster: Dictionary, target: Vector2, step: float) -> bool:
 	var position := Vector2(float(monster.x), float(monster.y))
 	monster.target_x = target.x
@@ -3941,8 +4008,7 @@ func _update_towers() -> void:
 			building.combat_state = "reloading"
 			continue
 		var center := Vector2(float(building.x) + float(building.width) * 0.5, float(building.y) + float(building.height) * 0.5)
-		var tier_scale := 1.0 if is_embedded_tower else 1.0 + float(int(building.tier) - 1) * 0.08
-		var tower_range := float(tower.get("range", 24.0)) * tier_scale
+		var tower_range := _tower_range(tower, int(building.tier), is_embedded_tower)
 		if String(tower.role) == "repair_golem":
 			var repair_target := _nearest_damaged_golem(center, tower_range)
 			if repair_target.is_empty():
@@ -3952,7 +4018,7 @@ func _update_towers() -> void:
 				continue
 			var repair_amount := roundi(float(tower.get("repair", 100)) * (1.0 + float(int(building.tier) - 1) * 0.25))
 			repair_target.health = mini(int(repair_target.max_health), int(repair_target.health) + repair_amount)
-			building.combat_cooldown = maxi(1, int(tower.reload_ticks) - (int(building.tier) - 1))
+			building.combat_cooldown = _tower_reload_ticks(tower, int(building.tier))
 			building.combat_state = "repairing"
 			_emit_event(&"golem_repaired", {"building_id": building.id, "golem_id": repair_target.id, "amount": repair_amount})
 			continue
@@ -3963,7 +4029,7 @@ func _update_towers() -> void:
 				if not structure_target.is_empty() and _consume_tower_payload(building, tower):
 					var structure_damage := roundi(float(tower.get("damage", 0)) * (1.0 + float(int(building.tier) - 1) * 0.25))
 					_apply_damage_to_hostile_structure(structure_target, structure_damage, StringName(tower.get("damage_type", "regular")))
-					building.combat_cooldown = maxi(1, int(tower.reload_ticks) - (int(building.tier) - 1))
+					building.combat_cooldown = _tower_reload_ticks(tower, int(building.tier))
 					building.combat_state = "firing"
 					_emit_event(&"tower_fired", {"building_id": building.id, "target_id": structure_target.id, "target_kind": "hostile_structure", "damage_type": tower.get("damage_type", "regular"), "target_count": 1})
 					continue
@@ -3980,7 +4046,7 @@ func _update_towers() -> void:
 				target.attracted_ticks = maxi(int(target.get("attracted_ticks", 0)), 80 + int(building.tier) * 20)
 			else:
 				_apply_damage_to_monster(target, damage, StringName(tower.get("damage_type", "regular")))
-		building.combat_cooldown = maxi(1, int(tower.reload_ticks) - (int(building.tier) - 1))
+		building.combat_cooldown = _tower_reload_ticks(tower, int(building.tier))
 		building.combat_state = "attracting" if String(tower.role) == "attract" else "firing"
 		_emit_event(&"tower_fired", {"building_id": building.id, "target_id": targets[0].id, "damage_type": tower.get("damage_type", "regular"), "target_count": target_count})
 
@@ -4046,7 +4112,31 @@ func _apply_damage_to_hostile_structure(structure: Dictionary, damage: int, dama
 	_emit_event(&"hostile_structure_destroyed", {"structure_id": structure.id, "definition_id": structure.definition_id, "damage_type": damage_type})
 	return true
 
+func _tower_tier_value(tower: Dictionary, tier_key: String, tier: int) -> Variant:
+	var by_tier: Array = tower.get(tier_key, [])
+	if by_tier.is_empty():
+		return null
+	return by_tier[clampi(tier - 1, 0, by_tier.size() - 1)]
+
+func _tower_range(tower: Dictionary, tier: int, is_embedded: bool) -> float:
+	var tiered: Variant = _tower_tier_value(tower, "range_by_tier", tier)
+	if tiered != null:
+		return float(tiered)
+	var scale := 1.0 if is_embedded else 1.0 + float(tier - 1) * 0.08
+	return float(tower.get("range", 24.0)) * scale
+
+func _tower_reload_ticks(tower: Dictionary, tier: int) -> int:
+	var tiered: Variant = _tower_tier_value(tower, "reload_ticks_by_tier", tier)
+	if tiered != null:
+		return maxi(1, int(tiered))
+	return maxi(1, int(tower.get("reload_ticks", 15)) - (tier - 1))
+
+func _tower_energy_capacity(tower: Dictionary, tier: int) -> int:
+	var tiered: Variant = _tower_tier_value(tower, "energy_capacity_by_tier", tier)
+	return 0 if tiered == null else maxi(0, int(tiered))
+
 func _consume_tower_payload(building: Dictionary, tower: Dictionary) -> bool:
+	var tier := maxi(1, int(building.get("tier", 1)))
 	var energy_cost := int(tower.get("energy_per_shot", 0))
 	var ammo_id := String(tower.get("ammo", ""))
 	if not ammo_id.is_empty() and String(building.get("ammo_resource", "")) != ammo_id:
@@ -4054,20 +4144,40 @@ func _consume_tower_payload(building: Dictionary, tower: Dictionary) -> bool:
 		building.ammo_shots = 0
 	var required_shots := int(tower.get("ammo_per_shot", 1))
 	var needs_ammo_stack := not ammo_id.is_empty() and int(building.get("ammo_shots", 0)) < required_shots
+	# Towers with a tiered energy buffer draw from the settlement in whole refills
+	# rather than metering single points out of the global pool every shot.
+	var energy_capacity := _tower_energy_capacity(tower, tier)
+	var buffered_energy := int(building.get("energy_buffer", 0))
+	var needs_energy_refill := energy_cost > 0 and energy_capacity > 0 and buffered_energy < energy_cost
 	# Validate the whole payload before consuming either energy or ammunition.
-	if energy_cost > 0 and int(resources.get("energy", 0)) < energy_cost:
-		building.combat_state = "no_energy"
-		return false
+	if energy_cost > 0:
+		if energy_capacity > 0:
+			if needs_energy_refill and int(resources.get("energy", 0)) < mini(energy_capacity, energy_cost):
+				building.combat_state = "no_energy"
+				return false
+		elif int(resources.get("energy", 0)) < energy_cost:
+			building.combat_state = "no_energy"
+			return false
 	if needs_ammo_stack:
 		if int(resources.get(ammo_id, 0)) <= 0:
 			building.combat_state = "no_ammo"
 			return false
 	if energy_cost > 0:
-		consume_physical_resource(&"energy", energy_cost)
+		if energy_capacity > 0:
+			if needs_energy_refill:
+				var refill := mini(energy_capacity - buffered_energy, int(resources.get("energy", 0)))
+				consume_physical_resource(&"energy", refill)
+				buffered_energy += refill
+			building.energy_buffer = maxi(0, buffered_energy - energy_cost)
+		else:
+			consume_physical_resource(&"energy", energy_cost)
 	if needs_ammo_stack:
 		consume_physical_resource(StringName(ammo_id), 1)
 		var ammo_definition := ContentRegistry.get_by_id(&"resources", StringName(ammo_id))
-		building.ammo_shots = int(building.get("ammo_shots", 0)) + int(ammo_definition.get("shots", 1))
+		# The reference game buys many rounds per unit of ammunition (20 arrows from
+		# one bundle of bolts in a Bow Tower, 10 in a Ballista Tower).
+		var rounds := int(tower.get("rounds_per_ammo", ammo_definition.get("shots", 1)))
+		building.ammo_shots = int(building.get("ammo_shots", 0)) + maxi(1, rounds)
 	if ammo_id.is_empty():
 		return true
 	building.ammo_shots = int(building.ammo_shots) - required_shots

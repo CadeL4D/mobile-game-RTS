@@ -30,6 +30,8 @@ Ruinward is an original, clean-room Godot 4.7 mobile colony-survival game inspir
 - Native 20/24-pixel mobile icons for every building, job, resource, god power, event, and interface family. Earlier generated Camp/Farm/Pen/Combobulator/Clinic concepts are explicitly non-shipping and are not used at runtime.
 - Original runtime-synthesized UI/build/goal cues and calm/danger/corruption music layers, plus a 16-track production catalog.
 
+- Reference-parity pass (see `docs/RISE_TO_RUINS_PARITY_AUDIT.md`): published construction costs and hit points across the catalog, per-tier tower reach and cadence, rounds bought per unit of ammunition, per-building land desirability and corruption resistance, town-centre global/construction speed bonuses, a per-species monster spawn ladder, curtain walls that stop phasing spectres, and documented road movement bonuses. Tower damage and per-shot energy stay on this project's own tuning and remain marked runtime-uncertain.
+
 This is an active production build, not the completed release. Many advanced buildings, creatures, events, goals, upgrades, art states, and late-game mechanics are cataloged but still require implementation and parity verification.
 
 ## Run

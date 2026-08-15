@@ -84,13 +84,32 @@ jobs:
           xcode-select -p
           xcodebuild -version
 
+      # A fresh checkout has no .godot/ directory, so no global script class
+      # cache exists. Running the project directly in that state makes every
+      # `class_name` symbol (GameCommand, RegionGenerator, ...) fail to resolve,
+      # main.gd fails to parse, the main scene never instantiates, and the
+      # process hangs until the job timeout. The editor's import pass builds
+      # that cache and must run first.
+      - name: Import project resources and build the script class cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          mkdir -p build
+          timeout 900 "$GODOT_BIN" --headless --import --path . \
+            2>&1 | tee build/github-ios-import.log
+          if [[ ! -s .godot/global_script_class_cache.cfg ]]; then
+            echo "Godot did not produce .godot/global_script_class_cache.cfg; class_name symbols would not resolve." >&2
+            exit 1
+          fi
+
       - name: Run cross-platform project smoke suite
         shell: bash
         run: |
           set -euo pipefail
           set -o pipefail
           mkdir -p build
-          "$GODOT_BIN" --headless --rendering-method gl_compatibility --path . --offline \
+          timeout 900 "$GODOT_BIN" --headless --path . \
             --log-file build/github-ios-tests.log -- --run-tests --ci-smoke \
             2>&1 | tee build/github-ios-tests-console.log
           if grep -E "SCRIPT ERROR|Parse Error|Compile Error|ERROR:" \
@@ -109,7 +128,7 @@ jobs:
           set -euo pipefail
           rm -rf build/ios
           mkdir -p build/ios
-          "$GODOT_BIN" --headless --rendering-method gl_compatibility --path . \
+          timeout 900 "$GODOT_BIN" --headless --path . \
             --log-file build/ios/godot-ios-export.log \
             --export-release "$IOS_PRESET" "build/ios/${APP_NAME}.xcodeproj"
           test -d "build/ios/${APP_NAME}.xcodeproj"
@@ -214,6 +233,7 @@ jobs:
         with:
           name: Ruinward-ios-failure-logs-${{ github.run_number }}
           path: |
+            build/github-ios-import.log
             build/github-ios-tests.log
             build/github-ios-tests-console.log
             build/ios/*.log

@@ -15,6 +15,16 @@
     {"id":"reliquary","name":"Reliquary, vessels and ghosts","status":"CONFIRMED_OFFICIAL","test_id":"parity_reliquary"},
     {"id":"touch_ui","name":"Touch-first mobile controls","status":"MOBILE_ADAPTATION","test_id":"mobile_touch_contract"},
     {"id":"legacy_barracks","name":"Barracks removed","status":"LEGACY_REMOVED","test_id":"content_no_barracks"},
-    {"id":"legacy_small_farm","name":"Small Farm removed","status":"LEGACY_REMOVED","test_id":"content_no_small_farm"}
+    {"id":"legacy_small_farm","name":"Small Farm removed","status":"LEGACY_REMOVED","test_id":"content_no_small_farm"},
+    {"id":"building_costs","name":"Published building cost and hit-point tables","status":"WIKI_SUPPORTED","test_id":"parity_building_costs"},
+    {"id":"tower_tables","name":"Per-tier tower reach and cadence","status":"WIKI_SUPPORTED","test_id":"parity_tower_tables"},
+    {"id":"tower_damage","name":"Tower damage and per-shot energy","status":"VERIFY_RUNTIME","test_id":"parity_tower_damage"},
+    {"id":"ammo_rounds","name":"Rounds bought per unit of ammunition","status":"WIKI_SUPPORTED","test_id":"parity_ammo_rounds"},
+    {"id":"land_desirability","name":"Per-building land desirability","status":"WIKI_SUPPORTED","test_id":"parity_land_desirability"},
+    {"id":"corruption_resistance","name":"Per-building corruption resistance","status":"WIKI_SUPPORTED","test_id":"parity_corruption_resistance"},
+    {"id":"town_center_bonuses","name":"Town-centre global and construction speed bonuses","status":"WIKI_SUPPORTED","test_id":"parity_town_center_bonuses"},
+    {"id":"monster_spawn_days","name":"Per-species monster spawn schedule","status":"WIKI_SUPPORTED","test_id":"parity_monster_spawn_days"},
+    {"id":"curtain_wall_phasing","name":"Curtain walls block phasing spectres","status":"WIKI_SUPPORTED","test_id":"parity_curtain_wall_phasing"},
+    {"id":"road_speed_bonuses","name":"Road movement bonuses and debris state","status":"WIKI_SUPPORTED","test_id":"parity_road_speeds"}
   ]
 }

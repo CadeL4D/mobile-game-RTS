@@ -3,10 +3,7 @@ extends Node
 const TERRAIN_CHUNK_RENDERER := preload("res://presentation/scripts/terrain_chunk_renderer.gd")
 const PHYSICAL_INVENTORY := preload("res://core/simulation/physical_inventory.gd")
 const RESERVATION_SERVICE := preload("res://core/simulation/reservation_service.gd")
-const PRODUCTION_SYSTEM_CLASS := preload("res://core/simulation/production_system.gd")
 const TASK_SYSTEM_CLASS := preload("res://core/simulation/task_system.gd")
-const ANIMAL_SYSTEM_CLASS := preload("res://core/simulation/animal_system.gd")
-const COMBAT_SYSTEM_CLASS := preload("res://core/simulation/combat_system.gd")
 const SPELL_SYSTEM_CLASS := preload("res://core/simulation/spell_system.gd")
 const SIMULATION_HOST_CLASS := preload("res://core/simulation/simulation_host.gd")
 
@@ -35,6 +32,7 @@ func _run() -> void:
 		_test_simulation_and_goal()
 		_test_physical_inventory_and_reservations()
 		_test_extracted_subsystem_contracts()
+		_test_reference_parity_fixes()
 		_test_physical_logistics_live_loop()
 		_test_save_round_trip()
 		_finish()
@@ -165,6 +163,7 @@ func _run() -> void:
 	_test_map_packages()
 	_test_physical_inventory_and_reservations()
 	_test_extracted_subsystem_contracts()
+	_test_reference_parity_fixes()
 	_test_physical_logistics_live_loop()
 	_test_save_round_trip()
 	_finish()
@@ -178,6 +177,12 @@ func _finish() -> void:
 			push_error(failure)
 		print("TEST RESULT: FAIL (%d failures)" % failures.size())
 		get_tree().quit(1)
+
+func _int_list(values: Array) -> Array[int]:
+	var result: Array[int] = []
+	for value in values:
+		result.append(int(value))
+	return result
 
 func _assert(value: bool, message: String) -> void:
 	if not value:
@@ -1222,7 +1227,17 @@ func _test_golems_and_tower_combat() -> void:
 	sim.monsters.append(target)
 	sim.set_physical_resource(&"ballista_bolts", 1, sim.blueprint.starting_cell)
 	sim._update_towers()
-	_assert(int(target.health) < 1000 and int(sim.resources.ballista_bolts) == 0 and int(ballista.get("ammo_shots", 0)) == 19, "Ballista Towers must load stacked bolts, consume one shot, and deal their typed damage")
+	# One bundle of bolts is worth ten shots in a Ballista Tower and twenty in a Bow
+	# Tower, so the same ammunition buys very different amounts of fire.
+	_assert(int(target.health) < 1000 and int(sim.resources.ballista_bolts) == 0 and int(ballista.get("ammo_shots", 0)) == 9, "Ballista Towers must load ten rounds per bolt bundle, consume one shot, and deal their typed damage")
+	var rounds_bow: Dictionary = _place_sandbox_building(&"bow_tower")
+	_assert(not rounds_bow.is_empty(), "Bow Tower must find a valid generated footprint")
+	target.x = float(rounds_bow.x) + float(rounds_bow.width) * 0.5 + 2.0
+	target.y = float(rounds_bow.y) + float(rounds_bow.height) * 0.5
+	target.health = 1000
+	sim.set_physical_resource(&"ballista_bolts", 1, sim.blueprint.starting_cell)
+	sim._update_towers()
+	_assert(int(rounds_bow.get("ammo_shots", 0)) == 19, "Bow Towers must load twenty rounds per bolt bundle")
 	ballista.combat_cooldown = 0
 	ballista.ammo_shots = 0
 	sim.set_physical_resource(&"ballista_bolts", 0, sim.blueprint.starting_cell)
@@ -1795,7 +1810,9 @@ func _test_roads_and_walls() -> void:
 	var road_cell := Vector2i(int(road.x), int(road.y))
 	var wall_cell := Vector2i(int(wall.x), int(wall.y))
 	var gate_cell := Vector2i(int(gate.x), int(gate.y))
-	_assert(is_equal_approx(sim.pathfinder.get_travel_weight(road_cell), 0.50) and is_equal_approx(sim.hostile_pathfinder.get_travel_weight(road_cell), 0.50) and is_equal_approx(sim._road_speed_multiplier(road_cell), 1.36), "Cut Stone roads must attract both factions' routes while increasing ground movement speed")
+	# The reference game's top road tier is a 70 % movement bonus.
+	var road_weight := 1.0 / 1.70
+	_assert(is_equal_approx(sim.pathfinder.get_travel_weight(road_cell), road_weight) and is_equal_approx(sim.hostile_pathfinder.get_travel_weight(road_cell), road_weight) and is_equal_approx(sim._road_speed_multiplier(road_cell), 1.70), "Cut Stone roads must attract both factions' routes while increasing ground movement speed")
 	_assert(not sim.pathfinder.is_walkable(wall_cell), "Completed curtain walls must become solid navigation obstacles")
 	_assert(not sim.hostile_pathfinder.is_walkable(wall_cell), "Completed settlement walls must also block hostile route planning so monsters attack or route around them")
 	_assert(sim.pathfinder.is_walkable(gate_cell) and sim.pathfinder.is_walkable(gate_cell + Vector2i.RIGHT), "Completed gates must remain traversable")
@@ -2403,24 +2420,108 @@ func _test_physical_inventory_and_reservations() -> void:
 	var migrated_tool = atomic_inventory.create_unique_item(&"iron_sword", &"weapon", 100, 100, &"hand", {}, PHYSICAL_INVENTORY.LocationState.CONTAINER, Vector2i.ZERO, 12)
 	_assert(migrated_tool != null and atomic_inventory.consume_available(&"iron_sword", 1) and atomic_inventory.get_total(&"iron_sword") == 0, "Authoritative consumption must support unique item instances migrated from older saves")
 
+func _test_reference_parity_fixes() -> void:
+	# Construction costs, hit points and storage taken straight from the reference
+	# game's published building tables.
+	var ancillary_definition: Dictionary = registry.get_by_id(&"buildings", &"ancillary")
+	_assert(int(ancillary_definition.cost.get("wood", 0)) == 32 and int(ancillary_definition.cost.get("rock", 0)) == 8, "Ancillary must cost the documented 32 wood and 8 rock")
+	_assert(int(registry.get_by_id(&"buildings", &"small_fountain").cost.get("rock", 0)) == 24, "Small Fountain must cost the documented 24 rock")
+	_assert(int(registry.get_by_id(&"buildings", &"fire_pit").cost.get("wood", 0)) == 6 and registry.get_by_id(&"buildings", &"fire_pit").cost.size() == 1, "Fire Pit must cost only the documented 6 wood")
+	_assert(int(registry.get_by_id(&"buildings", &"large_fire_pit").get("health", 0)) == 1195, "Large Fire Pit must retain its documented 1195 hit points")
+	_assert(_int_list(registry.get_by_id(&"buildings", &"crystal_storage").storage_profile.capacity_by_tier) == [16, 32, 48, 64, 80], "Crystal Storage must expose the documented 16-to-80 tier capacities")
+
+	# Land desirability and corruption resistance are catalogued per building.
+	_assert(int(registry.get_by_id(&"buildings", &"clinic").get("land_desirability", 0)) == 3, "Clinic must carry its documented +3 land desirability")
+	_assert(int(registry.get_by_id(&"buildings", &"bow_tower").get("land_desirability", 0)) == -2, "Towers must carry their documented -2 land desirability")
+	_assert(int(registry.get_by_id(&"buildings", &"camp").get("corruption_resistance", 0)) == 3, "The town centre must carry its documented corruption resistance")
+
+	# Tower reach and cadence follow the reference game's per-tier tables.
+	var bow_tower: Dictionary = registry.get_by_id(&"buildings", &"bow_tower").tower
+	_assert(_int_list(bow_tower.range_by_tier) == [16, 18, 20, 20], "Bow Tower reach must follow the documented per-tier table")
+	_assert(is_equal_approx(sim._tower_range(bow_tower, 1, false), 16.0) and is_equal_approx(sim._tower_range(bow_tower, 4, false), 20.0), "Tower reach must resolve from the per-tier table")
+	_assert(sim._tower_reload_ticks(bow_tower, 1) == 25 and sim._tower_reload_ticks(bow_tower, 4) == 18, "Tower cadence must resolve from the per-tier table and speed up with tier")
+	_assert(int(bow_tower.get("rounds_per_ammo", 0)) == 20 and int(registry.get_by_id(&"buildings", &"ballista_tower").tower.get("rounds_per_ammo", 0)) == 10, "A bolt bundle must buy twenty Bow Tower rounds and ten Ballista rounds")
+
+	# Every monster species unlocks on its own day rather than all at once.
+	_assert(int(registry.get_by_id(&"actors", &"small_slime").get("spawn_day", -1)) == 2, "Small Slimes must begin spawning on day two")
+	_assert(int(registry.get_by_id(&"actors", &"spectre").get("spawn_day", -1)) == 12, "Spectres must begin spawning on day twelve")
+	_assert(int(registry.get_by_id(&"actors", &"fire_elemental").get("spawn_day", -1)) == 16, "Fire Elementals must begin spawning on day sixteen")
+
+	var generator := RegionGenerator.new()
+	var blueprint := generator.generate(41414, &"applemeadow", &"forest")
+	var sandbox: Dictionary = registry.get_by_id(&"modes", &"sandbox").duplicate(true)
+	sandbox.needs_rate = 0.0
+	sandbox.monster_rate = 1.0
+	sandbox.first_attack_day = 0
+	sim.start_region(blueprint, sandbox)
+	sim.animals.clear()
+	sim.corruption_cells[sim._cell_key(blueprint.starting_cell + Vector2i(24, 24))] = 1.0
+
+	sim.monsters.clear()
+	sim.tick = sim.TICKS_PER_DAY * 2
+	for _index in 40:
+		sim.tick += 100
+		sim._spawn_monsters_if_due()
+	var early_species: Array[String] = []
+	for monster in sim.monsters:
+		if not String(monster.definition_id) in early_species:
+			early_species.append(String(monster.definition_id))
+	_assert(not sim.monsters.is_empty(), "Early nights must still produce a monster wave")
+	_assert(not "spectre" in early_species and not "fire_elemental" in early_species, "Late-game species must not appear on day three: %s" % str(early_species))
+	sim.monsters.clear()
+	sim.tick = sim.TICKS_PER_DAY * 20
+	for _index in 40:
+		sim.tick += 100
+		sim._spawn_monsters_if_due()
+	var late_species: Array[String] = []
+	for monster in sim.monsters:
+		if not String(monster.definition_id) in late_species:
+			late_species.append(String(monster.definition_id))
+	_assert("spectre" in late_species and "fire_elemental" in late_species, "Late nights must unlock the full monster ladder: %s" % str(late_species))
+	sim.monsters.clear()
+
+	# A curtain wall stops a phasing spectre; ordinary walls do not.
+	var curtain: Dictionary = _place_sandbox_building(&"curtain_wall")
+	_assert(not curtain.is_empty(), "Curtain wall must find a valid generated footprint")
+	var curtain_center := Vector2(float(curtain.x) + float(curtain.width) * 0.5, float(curtain.y) + float(curtain.height) * 0.5)
+	var approach := {"x": curtain_center.x - 6.0, "y": curtain_center.y}
+	var beyond := Vector2(curtain_center.x + 6.0, curtain_center.y)
+	var barrier: Dictionary = sim._phase_barrier_between(approach, beyond)
+	_assert(not barrier.is_empty() and int(barrier.id) == int(curtain.id), "A curtain wall must block a spectre's phasing route and become its target")
+	var wood_wall: Dictionary = _place_sandbox_building(&"wood_wall")
+	_assert(not wood_wall.is_empty(), "Wood wall must find a valid generated footprint")
+	_assert(sim.phase_blocking_cells.has(sim._cell_key(Vector2i(int(curtain.x), int(curtain.y)))), "Curtain wall cells must be registered as phase barriers")
+	_assert(not sim.phase_blocking_cells.has(sim._cell_key(Vector2i(int(wood_wall.x), int(wood_wall.y)))), "Wood and stone walls must remain transparent to phasing spectres")
+
+	# Town centre tiers grant the documented global and construction speed bonuses.
+	var town_center: Dictionary = _place_sandbox_building(&"camp")
+	_assert(not town_center.is_empty() and String(town_center.definition_id) == "camp", "The parity scenario must own a town centre")
+	town_center.tier = 1
+	sim._recalculate_settlement_support()
+	_assert(is_equal_approx(sim.get_global_speed_multiplier(), 1.0) and is_equal_approx(sim.get_building_speed_multiplier(), 1.0), "A first-tier Camp must grant no speed bonuses")
+	town_center.tier = 15
+	sim._recalculate_settlement_support()
+	_assert(is_equal_approx(sim.get_global_speed_multiplier(), 1.15), "A Large Castle must grant its documented 15 % global speed bonus")
+	_assert(is_equal_approx(sim.get_building_speed_multiplier(), 1.30), "A Large Castle must grant its documented 30 % construction speed bonus")
+
+	# Desirability moves nomad arrivals, bounded so no settlement stops growing.
+	sim.land_desirability = 0
+	_assert(is_equal_approx(sim.get_settlement_desirability_factor(), 1.0), "A neutral settlement must not shift nomad arrivals")
+	sim.land_desirability = 20
+	_assert(sim.get_settlement_desirability_factor() > 1.0, "A desirable settlement must attract nomads sooner")
+	sim.land_desirability = -20
+	_assert(sim.get_settlement_desirability_factor() < 1.0, "A grim settlement must attract nomads more slowly")
+	sim.land_desirability = -9999
+	_assert(sim.get_settlement_desirability_factor() >= 0.5, "Desirability must stay bounded so a settlement always keeps growing")
+	_test_simulation_and_goal()
+
 func _test_extracted_subsystem_contracts() -> void:
+	# Only subsystems the simulation host actually drives are covered here. Six
+	# further "extracted" classes used to be exercised in this test while the host
+	# never called them, which reported green on code the game did not run.
 	var inv = PHYSICAL_INVENTORY.new()
 	var reservation_service = RESERVATION_SERVICE.new()
 	inv.bind_reservation_service(reservation_service)
-
-	# Production consumes the actual plural `outputs` recipe schema atomically.
-	var production = PRODUCTION_SYSTEM_CLASS.new()
-	var lumber_mill := {"id": 77, "definition_id": "lumber_mill", "x": 10, "y": 10}
-	var boards_recipe: Dictionary = registry.get_by_id(&"recipes", &"boards")
-	inv.create_commodity_stack(&"wood", 1, PHYSICAL_INVENTORY.LocationState.CONTAINER, Vector2i(10, 10), 77)
-	_assert(production.consume_recipe_inputs(boards_recipe, 77, inv), "Production must consume complete physical input batches")
-	production.produce_recipe_outputs(boards_recipe, lumber_mill, inv)
-	_assert(inv.get_stored(&"wood") == 0 and inv.get_stored(&"boards") == 1, "Production must create outputs from the catalog's plural outputs dictionary")
-
-	var failed_inventory = PHYSICAL_INVENTORY.new()
-	failed_inventory.create_commodity_stack(&"wood", 5, PHYSICAL_INVENTORY.LocationState.CONTAINER, Vector2i.ZERO, 88)
-	var impossible_recipe := {"inputs": {"wood": 5, "rock": 1}, "outputs": {"boards": 1}}
-	_assert(not production.consume_recipe_inputs(impossible_recipe, 88, failed_inventory) and failed_inventory.get_stored(&"wood") == 5, "A missing recipe input must not partially consume an otherwise valid batch")
 
 	# Task deduplication prevents per-tick service code from flooding the board.
 	var tasks = TASK_SYSTEM_CLASS.new()
@@ -2429,39 +2530,20 @@ func _test_extracted_subsystem_contracts() -> void:
 	tasks.post_task(&"triage", Vector2i(3, 3), 9, 250, {"dedupe_key": "triage:9"})
 	_assert(tasks.active_tasks.size() == 1 and int(tasks.active_tasks.values()[0].priority) == 250, "Repeated service updates must refresh rather than duplicate the same task")
 
-	# Empty coops cannot create eggs, while living housed Cluckers can.
-	var animals_system = ANIMAL_SYSTEM_CLASS.new()
-	var coop := {"id": 90, "definition_id": "clucker_coop", "completed": true, "destroyed": false, "x": 4, "y": 4}
-	animals_system.process_animals([], [coop], tasks, inv, 120)
-	_assert(inv.get_total(&"eggs") == 0, "An empty Clucker Coop must never produce an egg")
-	var cluckers: Array[Dictionary] = [
-		{"id": 901, "species": "clucker", "captured": true, "pen_id": 90, "dead": false},
-		{"id": 902, "species": "clucker", "captured": true, "pen_id": 90, "dead": false}
-	]
-	animals_system.process_animals(cluckers, [coop], tasks, inv, 240)
-	_assert(inv.get_stored(&"eggs") == 1, "Living Cluckers housed in a Coop must produce physical eggs")
-
-	# Doggos consume the actual key, never an arbitrary first carried item.
-	var axe = inv.create_unique_item(&"axe", &"tool", 300, 300, &"hand", {}, PHYSICAL_INVENTORY.LocationState.CARRIER, Vector2i.ZERO, 0, 700)
-	var key = inv.create_unique_item(&"suspicious_key", &"loot", 1, 1, &"hand", {}, PHYSICAL_INVENTORY.LocationState.CARRIER, Vector2i.ZERO, 0, 700)
-	var lootbox = inv.create_commodity_stack(&"lootbox", 1, PHYSICAL_INVENTORY.LocationState.GROUND, Vector2i(5, 5))
-	animals_system.process_doggos([{"id": 700, "x": 5, "y": 5, "dead": false}], inv, reservation_service, null, [], 1)
-	_assert(inv.unique_items.has(axe.id) and not inv.unique_items.has(key.id) and not inv.commodity_stacks.has(lootbox.id), "Doggo loot handling must consume the suspicious key and preserve unrelated equipment")
-
-	# Towers only spend ammo after acquiring a target; magical towers also require energy.
-	var combat = COMBAT_SYSTEM_CLASS.new()
 	var spell_energy = SPELL_SYSTEM_CLASS.new()
-	var bow_tower := {"id": 100, "definition_id": "bow_tower", "completed": true, "destroyed": false, "x": 0, "y": 0}
-	inv.create_commodity_stack(&"ballista_bolts", 2, PHYSICAL_INVENTORY.LocationState.CONTAINER, Vector2i.ZERO, 100)
-	_assert(combat.update_towers([bow_tower], [], inv, 10, spell_energy).is_empty() and inv.get_container_quantity(100, &"ballista_bolts") == 2, "An idle tower must not consume ammunition")
-	var monster := {"id": 500, "definition_id": "zombie", "x": 1, "y": 1, "health": 500, "dead": false}
-	_assert(combat.update_towers([bow_tower], [monster], inv, 20, spell_energy).size() == 1 and inv.get_container_quantity(100, &"ballista_bolts") == 1, "A targeted physical tower must consume its configured ammunition once")
-
-	var elemental_tower := {"id": 101, "definition_id": "elemental_bolt_tower", "completed": true, "destroyed": false, "x": 0, "y": 0}
-	_assert(combat.update_towers([elemental_tower], [monster], inv, 16, spell_energy).is_empty(), "A magical tower without energy must not fire")
-	spell_energy.energy = 10
-	_assert(combat.update_towers([elemental_tower], [monster], inv, 32, spell_energy).size() == 1 and spell_energy.energy == 8, "A magical tower must consume its configured energy after acquiring a target")
 	_assert(spell_energy.can_cast_spell(&"grab", 40), "Spell lookup must resolve the real spells content category")
+
+	# Every subsystem the host instantiates must be one the host actually calls.
+	var host_source := FileAccess.get_file_as_string("res://core/simulation/simulation_host.gd")
+	_assert(not host_source.is_empty(), "Simulation host source must be readable for the wiring check")
+	for line in host_source.split("\n"):
+		# Member declarations only; locals are indented and are plainly in use.
+		if not line.begins_with("var ") or not line.strip_edges().ends_with(".new()"):
+			continue
+		var instance_name := line.substr(4, line.find(" ", 4) - 4).strip_edges()
+		if instance_name in ["pathfinder", "hostile_pathfinder"]:
+			continue
+		_assert(host_source.count("%s." % instance_name) > 1, "Simulation host instantiates '%s' but never calls it; wire it in or delete it" % instance_name)
 
 func _test_physical_logistics_live_loop() -> void:
 	var fresh = SIMULATION_HOST_CLASS.new()
