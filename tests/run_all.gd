@@ -34,9 +34,17 @@ func _run() -> void:
 		_test_extracted_subsystem_contracts()
 		_test_no_preload_of_excluded_paths()
 		_test_touch_placement_gestures()
+		_test_settlement_state_survives_save_load()
+		_test_event_damage_refreshes_navigation()
+		_test_region_graph_is_mutual()
 		_test_reference_parity_fixes()
 		_test_physical_logistics_live_loop()
 		_test_save_round_trip()
+		_finish()
+		return
+	if "--soak-only" in OS.get_cmdline_user_args():
+		_test_content()
+		_test_long_run_stability()
 		_finish()
 		return
 	if "--terrain-work-only" in OS.get_cmdline_user_args():
@@ -167,6 +175,9 @@ func _run() -> void:
 	_test_extracted_subsystem_contracts()
 	_test_no_preload_of_excluded_paths()
 	_test_touch_placement_gestures()
+	_test_settlement_state_survives_save_load()
+	_test_event_damage_refreshes_navigation()
+	_test_region_graph_is_mutual()
 	_test_reference_parity_fixes()
 	_test_physical_logistics_live_loop()
 	_test_save_round_trip()
@@ -2423,6 +2434,133 @@ func _test_physical_inventory_and_reservations() -> void:
 	_assert(atomic_inventory.consume_available(&"rock", 5) and atomic_inventory.get_total(&"rock") == 3, "Aggregate consumption must consume exactly the unreserved requested amount")
 	var migrated_tool = atomic_inventory.create_unique_item(&"iron_sword", &"weapon", 100, 100, &"hand", {}, PHYSICAL_INVENTORY.LocationState.CONTAINER, Vector2i.ZERO, 12)
 	_assert(migrated_tool != null and atomic_inventory.consume_available(&"iron_sword", 1) and atomic_inventory.get_total(&"iron_sword") == 0, "Authoritative consumption must support unique item instances migrated from older saves")
+
+func _test_region_graph_is_mutual() -> void:
+	# WorldCampaignService._are_adjacent only inspects the source region's list, so
+	# a one-way entry silently makes migration and courier routes work in one
+	# direction only. Loracre listed Vertmist without Vertmist listing it back.
+	var regions: Array = registry.get_all(&"regions")
+	var by_id: Dictionary = {}
+	for region in regions:
+		by_id[String(region.id)] = region
+	var edges := 0
+	for region in regions:
+		var region_id := String(region.id)
+		for neighbour_id in region.get("adjacent", []):
+			edges += 1
+			_assert(by_id.has(String(neighbour_id)), "Region %s lists unknown neighbour %s" % [region_id, neighbour_id])
+			if not by_id.has(String(neighbour_id)):
+				continue
+			var back: Array = by_id[String(neighbour_id)].get("adjacent", [])
+			_assert(region_id in back, "Region adjacency must be mutual: %s lists %s, but not the reverse" % [region_id, neighbour_id])
+	_assert(edges > 0 and edges % 2 == 0, "A mutual region graph must have an even number of directed edges (%d)" % edges)
+
+func _test_long_run_stability() -> void:
+	# Opt-in soak: run several in-game days per mode and check the invariants that
+	# a long session depends on. Too slow for the default suites; run with
+	# `-- --run-tests --soak-only`.
+	for mode_id in [&"traditional", &"nightmare", &"peaceful"]:
+		ProgressionService.reset_profile_progress()
+		var generator := RegionGenerator.new()
+		var blueprint := generator.generate(77000 + int(String(mode_id).length()), &"applemeadow", &"forest")
+		var rules: Dictionary = registry.get_by_id(&"modes", mode_id).duplicate(true)
+		sim.start_region(blueprint, rules)
+		var camp_cell: Vector2i = blueprint.starting_cell - Vector2i(6, 6)
+		sim.submit(GameCommand.place_building(sim.tick, &"camp", camp_cell))
+
+		var days := 6
+		var total_ticks: int = int(sim.TICKS_PER_DAY) * days
+		for _index in total_ticks:
+			sim.advance_tick()
+
+		var label := String(mode_id)
+		for resource_id in sim.resources:
+			_assert(int(sim.resources[resource_id]) >= 0, "%s: resource %s must never go negative (%d)" % [label, resource_id, int(sim.resources[resource_id])])
+		for villager in sim.villagers:
+			var x := float(villager.x)
+			var y := float(villager.y)
+			_assert(not is_nan(x) and not is_nan(y), "%s: villager %d has a NaN position" % [label, int(villager.id)])
+			_assert(x >= 0.0 and y >= 0.0 and x <= float(blueprint.width) and y <= float(blueprint.height), "%s: villager %d left the region at %s,%s" % [label, int(villager.id), x, y])
+			_assert(int(villager.health) >= 0, "%s: villager %d has negative health" % [label, int(villager.id)])
+		for monster in sim.monsters:
+			_assert(not is_nan(float(monster.x)) and not is_nan(float(monster.y)), "%s: monster %d has a NaN position" % [label, int(monster.id)])
+		_assert(sim.monsters.size() <= 600, "%s: monster population must stay under its cap (%d)" % [label, sim.monsters.size()])
+		if mode_id == &"peaceful":
+			_assert(sim.monsters.is_empty(), "Peaceful mode must never spawn monsters (%d present)" % sim.monsters.size())
+		_assert(not sim.compute_state_hash().is_empty(), "%s: state hash must still be computable after %d days" % [label, days])
+		var soak_state: Dictionary = sim.export_state()
+		_assert(sim.import_state(soak_state), "%s: a %d-day save must reload" % [label, days])
+		_assert(sim.villagers.size() > 0, "%s: the settlement must still have villagers after reload" % label)
+
+func _test_settlement_state_survives_save_load() -> void:
+	# Derived settlement figures are recomputed only when a building is completed,
+	# upgraded or destroyed. A restored save has to rebuild them too, or the loaded
+	# village silently loses its build allowance, range and town-centre bonuses.
+	ProgressionService.reset_profile_progress()
+	var generator := RegionGenerator.new()
+	var blueprint := generator.generate(24242, &"applemeadow", &"forest")
+	var sandbox: Dictionary = registry.get_by_id(&"modes", &"sandbox").duplicate(true)
+	sandbox.needs_rate = 0.0
+	sim.start_region(blueprint, sandbox)
+	sim.animals.clear()
+	var camp: Dictionary = _place_sandbox_building(&"camp")
+	_assert(int(camp.get("id", 0)) > 0 and String(camp.get("definition_id", "")) == "camp", "Save/load scenario must place a real town centre")
+	camp.tier = 6
+	sim._recalculate_settlement_support()
+
+	var expected_building_limit := int(sim.building_limit)
+	var expected_build_range := int(sim.build_range)
+	var expected_ancillary_limit := int(sim.ancillary_limit)
+	var expected_desirability := int(sim.land_desirability)
+	var expected_global_speed: float = sim.get_global_speed_multiplier()
+	var expected_building_speed: float = sim.get_building_speed_multiplier()
+	_assert(expected_building_limit > 0 and expected_build_range > 0, "A completed town centre must grant a build allowance and range")
+	_assert(expected_global_speed > 1.0, "A tier-six town centre must grant a global speed bonus")
+
+	var state: Dictionary = sim.export_state()
+	_assert(sim.import_state(state), "Settlement state must reload successfully")
+	_assert(int(sim.building_limit) == expected_building_limit, "Save/load must preserve the build allowance (%d vs %d)" % [int(sim.building_limit), expected_building_limit])
+	_assert(int(sim.build_range) == expected_build_range, "Save/load must preserve the build range (%d vs %d)" % [int(sim.build_range), expected_build_range])
+	_assert(int(sim.ancillary_limit) == expected_ancillary_limit, "Save/load must preserve the ancillary allowance")
+	_assert(int(sim.land_desirability) == expected_desirability, "Save/load must preserve settlement desirability (%d vs %d)" % [int(sim.land_desirability), expected_desirability])
+	_assert(is_equal_approx(sim.get_global_speed_multiplier(), expected_global_speed), "Save/load must preserve the town-centre global speed bonus")
+	_assert(is_equal_approx(sim.get_building_speed_multiplier(), expected_building_speed), "Save/load must preserve the town-centre construction speed bonus")
+
+	# Whatever mechanism restores those figures, they must agree with what the
+	# restored buildings actually imply. Recomputing from scratch must be a no-op.
+	var restored_building_limit := int(sim.building_limit)
+	var restored_range := int(sim.build_range)
+	var restored_desirability := int(sim.land_desirability)
+	var restored_global_speed: float = sim.get_global_speed_multiplier()
+	sim._recalculate_settlement_support()
+	_assert(int(sim.building_limit) == restored_building_limit, "Restored build allowance must match what the loaded buildings imply (%d vs %d)" % [int(sim.building_limit), restored_building_limit])
+	_assert(int(sim.build_range) == restored_range, "Restored build range must match what the loaded buildings imply (%d vs %d)" % [int(sim.build_range), restored_range])
+	_assert(int(sim.land_desirability) == restored_desirability, "Restored desirability must match what the loaded buildings imply (%d vs %d)" % [int(sim.land_desirability), restored_desirability])
+	_assert(is_equal_approx(sim.get_global_speed_multiplier(), restored_global_speed), "Restored speed bonuses must match what the loaded town centre implies")
+
+func _test_event_damage_refreshes_navigation() -> void:
+	# A disaster can destroy a wall or a road. Navigation and the road speed cache
+	# are rebuilt from the building list, so skipping the rebuild leaves actors
+	# routing around walls that no longer exist and running along dead roads.
+	ProgressionService.reset_profile_progress()
+	var generator := RegionGenerator.new()
+	var blueprint := generator.generate(35353, &"applemeadow", &"forest")
+	var sandbox: Dictionary = registry.get_by_id(&"modes", &"sandbox").duplicate(true)
+	sandbox.needs_rate = 0.0
+	sim.start_region(blueprint, sandbox)
+	sim.animals.clear()
+	var road: Dictionary = _place_sandbox_building(&"cut_stone_board_road")
+	_assert(not road.is_empty(), "Navigation refresh scenario must place a road")
+	var road_cell := Vector2i(int(road.x), int(road.y))
+	_assert(is_equal_approx(sim._road_speed_multiplier(road_cell), 1.70), "The placed road must grant its movement bonus")
+
+	# Destroy it the way a disaster does, through the shared damage path.
+	for _index in 64:
+		if bool(road.get("destroyed", false)):
+			break
+		sim._damage_random_building(4000)
+	_assert(bool(road.get("destroyed", false)), "The disaster damage path must be able to destroy the road")
+	_assert(is_equal_approx(sim._road_speed_multiplier(road_cell), 1.0), "A destroyed road must stop granting its movement bonus")
 
 func _test_touch_placement_gestures() -> void:
 	# A phone has no hover, so the only way to aim a building or spell is to drag

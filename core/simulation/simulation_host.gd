@@ -12,6 +12,8 @@ const CORRUPTION_RECLAIM_PER_SOURCE := 2
 const NATURAL_REGROWTH_INTERVAL := 600
 const DRONE_BUILD_INTERVAL := 40
 const MAX_HOSTILE_STRUCTURES := 96
+# How far ahead a phasing actor looks for a curtain wall, in cells.
+const PHASE_BARRIER_LOOKAHEAD_CELLS := 48.0
 const TASK_BOARD := preload("res://core/simulation/task_board.gd")
 const GRID_PATHFINDER := preload("res://core/simulation/grid_pathfinder.gd")
 const PHYSICAL_INVENTORY := preload("res://core/simulation/physical_inventory.gd")
@@ -3908,8 +3910,12 @@ func _phase_barrier_between(monster: Dictionary, target: Vector2) -> Dictionary:
 	if distance <= 0.01:
 		return {}
 	var direction := span / distance
+	# Only look a short way ahead. A spectre re-checks every tick as it closes, so
+	# sampling the whole route would cost hundreds of lookups per spectre per tick
+	# on a phone to learn about a wall it cannot reach yet.
+	var scan_limit := minf(distance, PHASE_BARRIER_LOOKAHEAD_CELLS)
 	var travelled := 0.0
-	while travelled <= distance:
+	while travelled <= scan_limit:
 		var cell := Vector2i(floori(origin.x + direction.x * travelled), floori(origin.y + direction.y * travelled))
 		var key := _cell_key(cell)
 		if phase_blocking_cells.has(key):
@@ -4456,6 +4462,12 @@ func _damage_random_building(damage: int) -> void:
 	if int(target.health) <= 0:
 		target.destroyed = true
 		_recalculate_settlement_support()
+		# A disaster can level a wall, gate or road, so the pathfinders and the
+		# road speed cache have to be rebuilt like every other destruction path.
+		# Without this, actors keep routing around walls that are gone and keep
+		# running along roads that no longer exist.
+		_refresh_navigation_buildings()
+		_emit_event(&"building_destroyed", {"building_id": target.id, "definition_id": target.definition_id, "cause": "disaster"})
 
 func _update_cullis_gate(building: Dictionary, definition: Dictionary) -> void:
 	var cullis: Dictionary = definition.get("cullis", {})

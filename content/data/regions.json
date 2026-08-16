@@ -1,7 +1,7 @@
 {
   "regions": [
     {"id":"merrowshore","name":"Merrowshore","biome":"desert","position":[0.38,0.12],"adjacent":["farley","sandysouth"],"evidence":"WIKI_SUPPORTED"},
-    {"id":"farley","name":"Farley","biome":"desert","position":[0.48,0.10],"adjacent":["merrowshore","wyvernedge"],"evidence":"WIKI_SUPPORTED"},
+    {"id":"farley","name":"Farley","biome":"desert","position":[0.48,0.1],"adjacent":["merrowshore","wyvernedge"],"evidence":"WIKI_SUPPORTED"},
     {"id":"sandysouth","name":"Sandysouth","biome":"desert","position":[0.36,0.19],"adjacent":["merrowshore","casas","pryley"],"evidence":"WIKI_SUPPORTED"},
     {"id":"wyvernedge","name":"Wyvernedge","biome":"desert","position":[0.51,0.18],"adjacent":["farley","stonerock","silverhurst"],"evidence":"WIKI_SUPPORTED"},
     {"id":"casas","name":"Casas","biome":"desert","position":[0.31,0.25],"adjacent":["sandysouth","stonerock","deepnesse"],"evidence":"WIKI_SUPPORTED"},
@@ -13,13 +13,13 @@
     {"id":"hollow_isle","name":"Hollow Isle","biome":"red_sands","position":[0.72,0.21],"adjacent":["deepnesse","stonerock","violetbank"],"evidence":"WIKI_SUPPORTED"},
     {"id":"wolfmere","name":"Wolfmere","biome":"red_sands","position":[0.58,0.31],"adjacent":["deepnesse","vertmist"],"evidence":"WIKI_SUPPORTED"},
     {"id":"violetbank","name":"Violetbank","biome":"red_sands","position":[0.73,0.31],"adjacent":["hollow_isle","swyndell"],"evidence":"WIKI_SUPPORTED"},
-    {"id":"vertmist","name":"Vertmist","biome":"red_sands","position":[0.61,0.38],"adjacent":["wolfmere","swyndell","black_coast"],"evidence":"WIKI_SUPPORTED"},
+    {"id":"vertmist","name":"Vertmist","biome":"red_sands","position":[0.61,0.38],"adjacent":["wolfmere","swyndell","black_coast","loracre"],"evidence":"WIKI_SUPPORTED"},
     {"id":"swyndell","name":"Swyndell","biome":"red_sands","position":[0.72,0.39],"adjacent":["violetbank","vertmist","crystalcoast"],"evidence":"WIKI_SUPPORTED"},
     {"id":"crystalcoast","name":"Crystalcoast","biome":"red_sands","position":[0.81,0.34],"adjacent":["swyndell","black_sands"],"evidence":"WIKI_SUPPORTED"},
 
     {"id":"black_coast","name":"Black Coast","biome":"marsh","position":[0.74,0.47],"adjacent":["vertmist","black_sands","newdragon"],"evidence":"WIKI_SUPPORTED"},
     {"id":"black_sands","name":"Black Sands","biome":"marsh","position":[0.84,0.45],"adjacent":["crystalcoast","black_coast","death_pass"],"evidence":"WIKI_SUPPORTED"},
-    {"id":"newdragon","name":"Newdragon","biome":"marsh","position":[0.70,0.56],"adjacent":["black_coast","death_pass","limestone"],"evidence":"WIKI_SUPPORTED"},
+    {"id":"newdragon","name":"Newdragon","biome":"marsh","position":[0.7,0.56],"adjacent":["black_coast","death_pass","limestone"],"evidence":"WIKI_SUPPORTED"},
     {"id":"death_pass","name":"Death Pass","biome":"marsh","position":[0.82,0.56],"adjacent":["black_sands","newdragon","nerstrand"],"evidence":"WIKI_SUPPORTED"},
     {"id":"limestone","name":"Limestone","biome":"marsh","position":[0.68,0.65],"adjacent":["newdragon","nerstrand","goldmist"],"evidence":"WIKI_SUPPORTED"},
     {"id":"nerstrand","name":"Nerstrand","biome":"marsh","position":[0.79,0.66],"adjacent":["death_pass","limestone","greyby"],"evidence":"WIKI_SUPPORTED"},
@@ -31,8 +31,8 @@
     {"id":"arid_river","name":"Arid River","biome":"dry_lands","position":[0.35,0.84],"adjacent":["wheatcastle","silvercoast","wilderock"],"evidence":"WIKI_SUPPORTED"},
     {"id":"goldmist","name":"Goldmist","biome":"dry_lands","position":[0.55,0.72],"adjacent":["silvercoast","limestone","greyby"],"evidence":"WIKI_SUPPORTED"},
     {"id":"wilderock","name":"Wilderock","biome":"dry_lands","position":[0.48,0.84],"adjacent":["arid_river","greyby"],"evidence":"WIKI_SUPPORTED"},
-    {"id":"greyby","name":"Greyby","biome":"dry_lands","position":[0.62,0.80],"adjacent":["wilderock","goldmist","nerstrand"],"evidence":"WIKI_SUPPORTED"},
-    {"id":"outlands","name":"Outlands","biome":"dry_lands","position":[0.31,0.60],"adjacent":["strongvale","springland","azusa"],"evidence":"WIKI_SUPPORTED"},
+    {"id":"greyby","name":"Greyby","biome":"dry_lands","position":[0.62,0.8],"adjacent":["wilderock","goldmist","nerstrand"],"evidence":"WIKI_SUPPORTED"},
+    {"id":"outlands","name":"Outlands","biome":"dry_lands","position":[0.31,0.6],"adjacent":["strongvale","springland","azusa"],"evidence":"WIKI_SUPPORTED"},
 
     {"id":"enchanted_shoreline","name":"Enchanted Shoreline","biome":"haven","position":[0.12,0.33],"adjacent":["narrow_path","woodhaven"],"evidence":"WIKI_SUPPORTED"},
     {"id":"narrow_path","name":"Narrow Path","biome":"haven","position":[0.19,0.29],"adjacent":["enchanted_shoreline","valencia","quiet_forest"],"evidence":"WIKI_SUPPORTED"},

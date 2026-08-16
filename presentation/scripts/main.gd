@@ -79,6 +79,7 @@ var event_icon: TextureRect
 var goal_panel: Control
 var toast_label: Label
 var placement_label: Label
+var placement_cancel_button: Button
 var pause_button: Button
 var hud_top_panel: PanelContainer
 var hud_top_row: HBoxContainer
@@ -108,11 +109,15 @@ func _ready() -> void:
 		# tests/ from shipped builds, and a preload is resolved when this script is
 		# parsed no matter which branch it sits in, so preloading here failed to
 		# parse main.gd in every exported build and left the game on a black screen.
-		if ResourceLoader.exists("res://tests/run_all.gd"):
-			var test_runner_script: GDScript = load("res://tests/run_all.gd")
-			add_child(test_runner_script.new())
-		else:
-			push_error("--run-tests was passed but tests/ is not present in this build.")
+		var test_runner_script: GDScript = load("res://tests/run_all.gd") if ResourceLoader.exists("res://tests/run_all.gd") else null
+		if test_runner_script == null or not test_runner_script.can_instantiate():
+			# Quit rather than idle. A harness that cannot start must fail the run
+			# immediately; sitting in the main loop turns a broken test script into
+			# a CI job that burns its whole timeout saying nothing.
+			push_error("--run-tests was passed but res://tests/run_all.gd could not be loaded.")
+			get_tree().quit(1)
+			return
+		add_child(test_runner_script.new())
 		return
 	_build_theme()
 	world_view = WORLD_VIEW.new()
@@ -122,6 +127,8 @@ func _ready() -> void:
 	world_view.entity_selected.connect(_on_entity_selected)
 	world_view.spell_changed.connect(_on_spell_changed)
 	world_view.terrain_action_changed.connect(_on_terrain_action_changed)
+	world_view.spell_changed.connect(func(_spell_id: StringName) -> void: _refresh_placement_cancel())
+	world_view.terrain_action_changed.connect(func(_action: StringName) -> void: _refresh_placement_cancel())
 	add_child(world_view)
 	move_child(world_view, 0)
 	ui_layer = CanvasLayer.new()
@@ -171,6 +178,8 @@ func _ready() -> void:
 		call_deferred("_capture_village")
 	elif "--capture-world" in OS.get_cmdline_user_args():
 		call_deferred("_capture_world")
+	elif "--capture-placement" in OS.get_cmdline_user_args():
+		call_deferred("_capture_placement")
 	elif "--capture-build" in OS.get_cmdline_user_args():
 		call_deferred("_capture_build")
 	elif "--capture-threat" in OS.get_cmdline_user_args():
@@ -288,6 +297,12 @@ func _apply_responsive_layout() -> void:
 	goal_label.add_theme_font_size_override("font_size", roundi((21 if phone_layout else 18) * font_scale))
 	placement_label.offset_top = -bottom_inset - bottom_height - 47.0
 	placement_label.offset_bottom = -bottom_inset - bottom_height - 15.0
+	if placement_cancel_button:
+		var cancel_height := touch_target_height if touch_layout else 36.0
+		placement_cancel_button.offset_top = -bottom_inset - bottom_height - 47.0 - (cancel_height - 32.0) * 0.5
+		placement_cancel_button.offset_bottom = placement_cancel_button.offset_top + cancel_height
+		placement_cancel_button.offset_left = (232.0 if touch_layout else 226.0)
+		placement_cancel_button.offset_right = placement_cancel_button.offset_left + (140.0 if touch_layout else 120.0)
 	toast_label.offset_top = top_inset + top_height + 20.0
 	toast_label.offset_bottom = toast_label.offset_top + 52.0
 	var drawer_top := top_inset + top_height + 20.0
@@ -756,6 +771,16 @@ func _capture_build() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_save_capture("res://build/captures/build_drawer.png")
+
+func _capture_placement() -> void:
+	ProgressionService.skip_all_tutorials()
+	AppController.select_mode(&"traditional")
+	AppController.select_region(&"applemeadow")
+	AppController.establish_selected_region()
+	world_view.begin_placement(&"camp")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_save_capture("res://build/captures/placement_armed.png")
 
 func _capture_threat() -> void:
 	AppController.select_mode(&"nightmare")
@@ -2888,6 +2913,24 @@ func _build_hud() -> Control:
 	placement_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	placement_label.add_theme_color_override("font_color", Color("7affd9"))
 	layer.add_child(placement_label)
+	# A mouse cancels an armed placement with the right button and a keyboard with
+	# Escape. A touch screen has neither, so without this the only way out of an
+	# armed building or god power is to place it somewhere.
+	placement_cancel_button = Button.new()
+	placement_cancel_button.text = "Cancel"
+	placement_cancel_button.visible = false
+	placement_cancel_button.anchor_left = 0.5
+	placement_cancel_button.anchor_right = 0.5
+	placement_cancel_button.anchor_top = 1.0
+	placement_cancel_button.anchor_bottom = 1.0
+	placement_cancel_button.offset_left = 226
+	placement_cancel_button.offset_top = -129
+	placement_cancel_button.offset_right = 346
+	placement_cancel_button.offset_bottom = -89
+	placement_cancel_button.pressed.connect(func() -> void:
+		world_view.cancel_placement()
+		_show_toast("Placement cancelled."))
+	layer.add_child(placement_cancel_button)
 	jobs_drawer = _build_jobs_drawer(layer)
 	meta_drawer = _build_meta_drawer(layer)
 	build_drawer = _build_construction_drawer(layer)
@@ -4281,7 +4324,13 @@ func _on_placement_changed(building_id: StringName) -> void:
 			placement_label.text = "Drag to pan • Pinch or wheel to zoom"
 	else:
 		var definition := ContentRegistry.get_by_id(&"buildings", building_id)
-		placement_label.text = "Placing %s • Tap terrain to confirm" % definition.get("name", building_id)
+		placement_label.text = "Placing %s • Drag the ghost, lift to place" % definition.get("name", building_id)
+	_refresh_placement_cancel()
+
+func _refresh_placement_cancel() -> void:
+	if placement_cancel_button == null or world_view == null:
+		return
+	placement_cancel_button.visible = not (world_view.pending_building_id.is_empty() and world_view.pending_spell_id.is_empty() and world_view.pending_terrain_action.is_empty())
 
 func _on_spell_changed(spell_id: StringName) -> void:
 	if spell_id == &"grab":

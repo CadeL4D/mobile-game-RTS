@@ -61,7 +61,7 @@
   "tutorials": [
     {"id":"choose_mode","name":"Choose a Mode","trigger":"first_profile","description":"Traditional is the recommended first campaign. Each mode keeps separate villages while profile goals and perks persist.","evidence":"MOBILE_ADAPTATION"},
     {"id":"choose_region","name":"Choose a Region","trigger":"world_map_first_open","description":"Choose a highlighted region to establish your first village. Connected regions later support migration and courier routes.","evidence":"MOBILE_ADAPTATION"},
-    {"id":"place_camp","name":"Place the Camp","trigger":"region_first_open","description":"Move the Camp ghost onto clear land near wood, rock, food, crystal, and water, then tap to place it.","evidence":"MOBILE_ADAPTATION"},
+    {"id":"place_camp","name":"Place the Camp","trigger":"region_first_open","description":"Drag the Camp ghost onto clear land near wood, rock, food, crystal, and water, then lift your finger to place it. Cancel with the button beside the banner.","evidence":"MOBILE_ADAPTATION"},
     {"id":"camera_gestures","name":"Move and Zoom","trigger":"camp_placed","description":"Drag empty terrain to pan. Pinch with two fingers to zoom. On desktop, drag and use the mouse wheel.","evidence":"MOBILE_ADAPTATION"},
     {"id":"harvest_resources","name":"Harvest Resources","trigger":"camp_completed","description":"Build harvesting workplaces and assign workers. Builders can help in emergencies, but dedicated harvesters are faster.","evidence":"MOBILE_ADAPTATION"},
     {"id":"jobs","name":"Set Job Quotas","trigger":"workplace_completed","description":"Open Jobs and adjust desired workers. Villagers switch jobs automatically when a matching workplace has capacity.","evidence":"MOBILE_ADAPTATION"},
