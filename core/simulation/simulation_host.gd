@@ -337,8 +337,10 @@ func advance_tick() -> void:
 	WorldCampaignService.advance_ticks()
 	if tick % TICKS_PER_DAY == 0:
 		ProgressionService.record(&"days.survived")
-	if tick % 5 == 0:
-		_emit_snapshot()
+	# Every tick, not every fifth. Actors only move when the simulation ticks, so
+	# this is the real animation rate; the view used to redraw every frame against
+	# a snapshot that changed twice a second, which was both choppy and wasteful.
+	_emit_snapshot()
 
 func _apply_due_commands() -> void:
 	while not command_queue.is_empty() and command_queue.front().target_tick <= tick:
@@ -5448,6 +5450,28 @@ func set_speed(value: int) -> void:
 	paused = speed == 0
 	_emit_snapshot()
 
+# Pathfinding routes are simulation-internal and run to dozens of nested arrays
+# per actor. Deep-copying them into every snapshot cost fourteen times more than
+# everything else in the actor put together, twice a second, and grew with the
+# population — which is what made a settled village stutter. The interface draws
+# positions, states and health; it never reads a route.
+const SNAPSHOT_OMITTED_ACTOR_KEYS := ["path", "path_index", "path_goal_x", "path_goal_y"]
+
+func _snapshot_actors(source: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	result.resize(source.size())
+	var index := 0
+	for entity in source:
+		var lean := {}
+		for key in entity:
+			if key in SNAPSHOT_OMITTED_ACTOR_KEYS:
+				continue
+			var value: Variant = entity[key]
+			lean[key] = value.duplicate(true) if (value is Dictionary or value is Array) else value
+		result[index] = lean
+		index += 1
+	return result
+
 func get_snapshot() -> SimulationSnapshot:
 	var snapshot := SimulationSnapshot.new()
 	snapshot.tick = tick
@@ -5497,12 +5521,12 @@ func get_snapshot() -> SimulationSnapshot:
 	elif String(held_entity.get("kind", "")) == "golem":
 		population_groups.golems = int(population_groups.golems) + 1
 	snapshot.population_groups = population_groups
-	snapshot.villagers = villagers.duplicate(true)
-	snapshot.nomads = nomads.duplicate(true)
-	snapshot.animals = animals.duplicate(true)
-	snapshot.golems = golems.duplicate(true)
-	snapshot.monsters = monsters.duplicate(true)
-	snapshot.ghosts = ghosts.duplicate(true)
+	snapshot.villagers = _snapshot_actors(villagers)
+	snapshot.nomads = _snapshot_actors(nomads)
+	snapshot.animals = _snapshot_actors(animals)
+	snapshot.golems = _snapshot_actors(golems)
+	snapshot.monsters = _snapshot_actors(monsters)
+	snapshot.ghosts = _snapshot_actors(ghosts)
 	var corruption_positions: Array = []
 	for corruption_key in corruption_cells:
 		var cell := _cell_from_key(String(corruption_key))

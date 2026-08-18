@@ -57,6 +57,9 @@ var pending_building_id: StringName = &""
 var pending_spell_id: StringName = &""
 var pending_terrain_action: StringName = &""
 var pointer_cell := Vector2i.ZERO
+var last_drawn_camera_state := Vector3.INF
+var debug_draw_count := 0
+
 var dragging := false
 var drag_distance := 0.0
 var touch_points: Dictionary = {}
@@ -130,6 +133,15 @@ func _exit_tree() -> void:
 	terrain_chunk_active.clear()
 
 func _process(_delta: float) -> void:
+	# The camera keeps gliding after input ends because of position smoothing, and
+	# culling is computed per draw, so a moved camera has to force a redraw. Beyond
+	# that the world is redrawn only when its contents change, rather than every
+	# frame against an unchanged snapshot.
+	if camera != null:
+		var camera_state := Vector3(camera.position.x, camera.position.y, camera.zoom.x)
+		if camera_state != last_drawn_camera_state:
+			last_drawn_camera_state = camera_state
+			queue_redraw()
 	_poll_terrain_chunk_workers()
 	var priority_cell := Vector2i(floori(camera.position.x / (TILE_PIXELS * TERRAIN_CHUNK_CELLS)), floori(camera.position.y / (TILE_PIXELS * TERRAIN_CHUNK_CELLS))) if camera != null else Vector2i.ZERO
 	if priority_cell != terrain_chunk_priority_cell and not terrain_chunk_queue.is_empty():
@@ -458,7 +470,11 @@ func _poll_terrain_chunk_workers() -> void:
 		terrain_chunk_active.erase(task_id)
 	if terrain_chunk_queue.is_empty() and terrain_chunk_active.is_empty() and terrain_all_chunks_ready_ms < 0.0:
 		terrain_all_chunks_ready_ms = float(Time.get_ticks_usec() - terrain_chunk_started_usec) / 1000.0
-	queue_redraw()
+	# Only when a chunk actually landed. This used to run on every poll, so for the
+	# whole streaming period — many seconds on a phone — the entire world was
+	# redrawn every frame whether or not anything had changed.
+	if not completed_ids.is_empty():
+		queue_redraw()
 
 func is_terrain_chunking_complete() -> bool:
 	return terrain_chunk_queue.is_empty() and terrain_chunk_active.is_empty()
@@ -1515,6 +1531,7 @@ func _tile_color(tile: int, biome: StringName, x: int, y: int, season: StringNam
 	return Color(result.r, result.g, result.b, 1.0)
 
 func _draw() -> void:
+	debug_draw_count += 1
 	if current_blueprint == null:
 		return
 	var profile_started := Time.get_ticks_usec()

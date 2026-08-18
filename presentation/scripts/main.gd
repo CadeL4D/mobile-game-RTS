@@ -33,6 +33,12 @@ var hud: Control
 var jobs_drawer: Control
 var build_drawer: Control
 var build_catalog_box: VBoxContainer
+var materials_drawer: Control
+var latest_snapshot: SimulationSnapshot
+var materials_box: VBoxContainer
+var terrain_drawer: Control
+var build_category_filter := ""
+var build_search_query := ""
 var spells_drawer: Control
 var spells_catalog_box: VBoxContainer
 var regions_drawer: Control
@@ -170,6 +176,12 @@ func _ready() -> void:
 	WorldCampaignService.transfer_completed.connect(func(transfer: Dictionary) -> void: _show_toast("%s arrived in %s." % [String(transfer.kind).capitalize(), String(transfer.destination).replace("_", " ").capitalize()]))
 	WorldCampaignService.transfer_failed.connect(func(_transfer: Dictionary, _reason: String) -> void: _show_toast("Regional transfer failed; reserved cargo returned."))
 	_show_screen(AppController.current_screen)
+	if "--capture-materials" in OS.get_cmdline_user_args():
+		call_deferred("_capture_materials")
+	elif "--profile-frames" in OS.get_cmdline_user_args():
+		call_deferred("_profile_frames")
+	if "--profile-sim" in OS.get_cmdline_user_args():
+		call_deferred("_profile_simulation")
 	if "--input-probe" in OS.get_cmdline_user_args():
 		call_deferred("_probe_world_input")
 	elif "--capture-ui" in OS.get_cmdline_user_args():
@@ -744,6 +756,143 @@ func _capture_chunked_terrain_review() -> void:
 	print("TERRAIN CHUNK CAPTURE: complete=%s stats=%s seam_cell=%s" % [str(completed), str(world_view.get_terrain_chunk_stats()), seam_cell])
 	get_tree().quit(1 if not completed or errors.any(func(error: int) -> bool: return error != OK) else 0)
 
+func _profile_frames() -> void:
+	# Measure what the player actually feels. Vsync and any fps cap are removed
+	# first, otherwise every phase reads back as the display refresh rate and the
+	# comparison says nothing about how much headroom is left.
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	AppController.select_mode(&"traditional")
+	AppController.select_region(&"applemeadow")
+	AppController.establish_selected_region()
+	var sim := SimulationHost
+	sim.submit(GameCommand.place_building(sim.tick, &"camp", sim.blueprint.starting_cell - Vector2i(6, 6)))
+	for _warm in 3000:
+		sim.advance_tick()
+	for _settle in 30:
+		await get_tree().process_frame
+
+	print("FRAMES villagers=%d monsters=%d animals=%d buildings=%d nodes=%d corruption=%d" % [sim.villagers.size(), sim.monsters.size(), sim.animals.size(), sim.buildings.size(), sim.resource_nodes.size(), sim.corruption_cells.size()])
+	await _measure_frames("everything on")
+	world_view.visible = false
+	await _measure_frames("world hidden (isolates world drawing)")
+	world_view.visible = true
+	sim.set_paused(true)
+	await _measure_frames("simulation paused (isolates ticking)")
+	sim.set_paused(false)
+	get_tree().quit()
+
+func _measure_frames(label: String) -> void:
+	for _settle in 20:
+		await get_tree().process_frame
+	world_view.debug_draw_count = 0
+	var frames := 200
+	var frame_total := 0.0
+	var worst := 0.0
+	var draw_calls := 0.0
+	for _index in frames:
+		var started := Time.get_ticks_usec()
+		await get_tree().process_frame
+		var elapsed := float(Time.get_ticks_usec() - started)
+		frame_total += elapsed
+		worst = maxf(worst, elapsed)
+		draw_calls += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+	print("FRAMES %-42s redraws=%d" % [label, world_view.debug_draw_count])
+	print("FRAMES %-42s chunk_active=%d chunk_queue=%d chunking_complete=%s sprites=%d" % [label, world_view.terrain_chunk_active.size(), world_view.terrain_chunk_queue.size(), world_view.is_terrain_chunking_complete(), world_view.terrain_chunk_sprites.size()])
+	print("FRAMES %-42s avg=%6.2f ms  worst=%6.2f ms  fps=%6.1f  draws=%.0f" % [
+		label,
+		frame_total / float(frames) / 1000.0,
+		worst / 1000.0,
+		1000000.0 / maxf(1.0, frame_total / float(frames)),
+		draw_calls / float(frames)])
+
+func _profile_simulation() -> void:
+	# Diagnostic: time each per-tick subsystem on a settled village so the cost is
+	# attributed rather than guessed at.
+	AppController.select_mode(&"traditional")
+	AppController.select_region(&"applemeadow")
+	AppController.establish_selected_region()
+	await get_tree().process_frame
+	var sim := SimulationHost
+	sim.submit(GameCommand.place_building(sim.tick, &"camp", sim.blueprint.starting_cell - Vector2i(6, 6)))
+	for _warm in 2400:
+		sim.advance_tick()
+	print("PROFILE settled: villagers=%d buildings=%d monsters=%d animals=%d nodes=%d loose=%d" % [sim.villagers.size(), sim.buildings.size(), sim.monsters.size(), sim.animals.size(), sim.resource_nodes.size(), sim.loose_items.size()])
+
+	var names := ["_update_villagers", "_update_nomads", "_update_population_life_cycle", "_update_animals",
+		"_update_equipment", "_update_buildings", "_update_water_buildings", "_update_natural_resources",
+		"_update_production", "_update_golems", "_update_catjeet_trade", "_update_decay_and_trash",
+		"_update_held_hand", "_update_needs", "_update_combat_statuses", "_update_death_and_ghosts",
+		"_update_corruption", "_update_monsters", "_update_hostile_structures", "_update_towers",
+		"_update_god_structures", "_update_influence", "_update_weather_and_events",
+		"_update_terrain_effects", "_update_resource_rates", "_refresh_task_board", "_emit_snapshot"]
+	var totals: Dictionary = {}
+	var samples := 400
+	for _index in samples:
+		for fn in names:
+			var started := Time.get_ticks_usec()
+			sim.call(fn)
+			totals[fn] = float(totals.get(fn, 0.0)) + float(Time.get_ticks_usec() - started)
+	# Attribute the snapshot cost to individual collections.
+	var snap_parts := {
+		"villagers": sim.villagers, "animals": sim.animals, "monsters": sim.monsters,
+		"golems": sim.golems, "nomads": sim.nomads, "ghosts": sim.ghosts,
+		"buildings": sim.buildings, "resource_nodes": sim.resource_nodes,
+		"loose_items": sim.loose_items, "jobs": sim.jobs, "goals": sim.goals,
+		"resources": sim.resources, "resource_caps": sim.resource_caps,
+	}
+	for part_name in snap_parts:
+		var started_part := Time.get_ticks_usec()
+		for _rep in 100:
+			var _copy = snap_parts[part_name].duplicate(true)
+		var per_call := float(Time.get_ticks_usec() - started_part) / 100.0
+		var count: int = snap_parts[part_name].size()
+		if per_call >= 20.0:
+			print("PROFILE snapshot copy %-18s %8.0f us  (%d entries)" % [part_name, per_call, count])
+	# How much of an entity copy is the nested pathfinding data?
+	if not sim.monsters.is_empty():
+		var sample_monster: Dictionary = sim.monsters[0]
+		var path_len: int = sample_monster.get("path", []).size()
+		var stripped: Array = []
+		for m in sim.monsters:
+			var lean: Dictionary = m.duplicate(false)
+			lean.erase("path")
+			stripped.append(lean)
+		var deep_started := Time.get_ticks_usec()
+		for _r in 100:
+			var _d = sim.monsters.duplicate(true)
+		var deep_us := float(Time.get_ticks_usec() - deep_started) / 100.0
+		var lean_started := Time.get_ticks_usec()
+		for _r2 in 100:
+			var _l = stripped.duplicate(true)
+		var lean_us := float(Time.get_ticks_usec() - lean_started) / 100.0
+		var shallow_started := Time.get_ticks_usec()
+		for _r3 in 100:
+			var _sh = sim.monsters.duplicate(false)
+		var shallow_us := float(Time.get_ticks_usec() - shallow_started) / 100.0
+		print("PROFILE monsters=%d sample_path_len=%d | deep=%.0f us  deep_without_path=%.0f us  shallow=%.0f us" % [sim.monsters.size(), path_len, deep_us, lean_us, shallow_us])
+
+	var corruption_started := Time.get_ticks_usec()
+	for _rep2 in 100:
+		var positions: Array = []
+		for corruption_key in sim.corruption_cells:
+			var cell := sim._cell_from_key(String(corruption_key))
+			positions.append([cell.x, cell.y, 1.0])
+	print("PROFILE snapshot corruption rebuild %8.0f us  (%d cells)" % [float(Time.get_ticks_usec() - corruption_started) / 100.0, sim.corruption_cells.size()])
+
+	var rows: Array = []
+	for fn in totals:
+		rows.append({"fn": fn, "us": float(totals[fn]) / float(samples)})
+	rows.sort_custom(func(a, b): return float(a.us) > float(b.us))
+	var total_us := 0.0
+	for row in rows:
+		total_us += float(row.us)
+	print("PROFILE total per tick: %.0f us (budget at 10 Hz is 100000 us)" % total_us)
+	for row in rows:
+		if float(row.us) >= 20.0:
+			print("PROFILE %-32s %8.0f us  %5.1f%%" % [row.fn, float(row.us), 100.0 * float(row.us) / maxf(1.0, total_us)])
+	get_tree().quit()
+
 func _probe_world_input() -> void:
 	# Diagnostic: prove whether pointer input actually reaches the world view on
 	# the play screen, or is swallowed by a full-rect Control on the way down.
@@ -818,16 +967,44 @@ func _probe_world_input() -> void:
 	await get_tree().process_frame
 	var hud_reached := SimulationHost.paused != paused_before if can_check_hud else true
 
-	print("INPUT PROBE touch_reached_world=%s mouse_reached_world=%s hud_button_still_works=%s blockers=%s" % [touch_reached, mouse_reached, ("skipped(headless)" if not can_check_hud else str(hud_reached)), blockers])
 	# The dummy display server does no GUI picking, so injected events reach the
 	# world even when a Control would swallow them on a real device. The geometric
 	# scan is what makes this check meaningful headless: any visible full-screen
 	# MOUSE_FILTER_STOP control over the play area is the bug, whatever the
 	# injected events happened to do.
-	var ok := touch_reached and mouse_reached and hud_reached and blockers.is_empty()
+	# An idle world must not redraw. Every frame used to rebuild the whole scene
+	# against a snapshot that had not changed, which is what made a settled village
+	# crawl on a phone. Only meaningful with a real display, since the dummy
+	# renderer never issues draws at all.
+	SimulationHost.set_paused(true)
+	for _drain in 10:
+		await get_tree().process_frame
+	world_view.debug_draw_count = 0
+	for _idle in 60:
+		await get_tree().process_frame
+	var idle_redraws: int = world_view.debug_draw_count
+	SimulationHost.set_paused(false)
+	var idle_ok := idle_redraws <= 2 or DisplayServer.get_name() == "headless"
+
+	print("INPUT PROBE touch_reached_world=%s mouse_reached_world=%s hud_button_still_works=%s idle_redraws=%d blockers=%s" % [touch_reached, mouse_reached, ("skipped(headless)" if not can_check_hud else str(hud_reached)), idle_redraws, blockers])
+	var ok := touch_reached and mouse_reached and hud_reached and blockers.is_empty() and idle_ok
+	if not idle_ok:
+		push_error("A paused, idle world redrew %d times in 60 frames; redraws must be driven by change." % idle_redraws)
 	if not ok:
 		push_error("Pointer input cannot reach the world view. Blocking controls: %s" % str(blockers))
 	get_tree().quit(0 if ok else 1)
+
+func _capture_materials() -> void:
+	AppController.select_mode(&"traditional")
+	AppController.select_region(&"applemeadow")
+	AppController.establish_selected_region()
+	for _index in 60:
+		SimulationHost.advance_tick()
+	await get_tree().process_frame
+	_toggle_materials_drawer()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_save_capture("res://build/captures/materials.png")
 
 func _capture_ui() -> void:
 	await get_tree().process_frame
@@ -2661,6 +2838,7 @@ func _build_world_screen() -> Control:
 	var browser_scroll := ScrollContainer.new()
 	browser_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	browser_outer.add_child(browser_scroll)
+	DragScroll.attach(browser_scroll)
 	world_region_browser_box = VBoxContainer.new()
 	world_region_browser_box.custom_minimum_size.x = 450
 	world_region_browser_box.add_theme_constant_override("separation", 6)
@@ -2709,6 +2887,7 @@ func _build_map_editor_screen() -> Control:
 	tool_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	tool_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	tools.add_child(tool_scroll)
+	DragScroll.attach(tool_scroll)
 	var tool_box := VBoxContainer.new()
 	tool_box.custom_minimum_size.x = 225
 	tool_box.add_theme_constant_override("separation", 7)
@@ -2871,6 +3050,11 @@ func _build_hud() -> Control:
 	hud_top_row.add_child(population_label)
 	_add_hud_pixel_icon(hud_top_row, &"hud_resources")
 	resource_label = _label("W32/200 R32/200 F96 H₂O96 C8", 16)
+	resource_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	resource_label.tooltip_text = "Open the full materials list"
+	resource_label.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			_toggle_materials_drawer())
 	resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resource_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hud_top_row.add_child(resource_label)
@@ -2918,6 +3102,7 @@ func _build_hud() -> Control:
 	build_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	build_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	hud_bottom_panel.add_child(build_scroll)
+	DragScroll.attach(build_scroll)
 	hud_build_row = HBoxContainer.new()
 	hud_build_row.add_theme_constant_override("separation", 7)
 	build_scroll.add_child(hud_build_row)
@@ -2949,13 +3134,16 @@ func _build_hud() -> Control:
 	_set_pixel_button_icon(spells_button, pixel_icons.spell(&"grab", &"utility", 24))
 	spells_button.pressed.connect(_toggle_spells_drawer)
 	hud_build_row.add_child(spells_button)
-	for terrain_action in [&"clear", &"dig", &"fill", &"restore"]:
-		var terrain_button := Button.new()
-		terrain_button.text = String(terrain_action).capitalize()
-		terrain_button.custom_minimum_size = Vector2(82, 56)
-		_set_pixel_button_icon(terrain_button, pixel_icons.ui(&"terrain_tools", 24))
-		terrain_button.pressed.connect(func() -> void: world_view.begin_terrain_work(terrain_action))
-		hud_build_row.add_child(terrain_button)
+	var materials_button := Button.new()
+	materials_button.text = "Materials"
+	_set_pixel_button_icon(materials_button, pixel_icons.ui(&"hud_resources", 24))
+	materials_button.pressed.connect(_toggle_materials_drawer)
+	hud_build_row.add_child(materials_button)
+	var terrain_button := Button.new()
+	terrain_button.text = "Terrain"
+	_set_pixel_button_icon(terrain_button, pixel_icons.ui(&"terrain_tools", 24))
+	terrain_button.pressed.connect(_toggle_terrain_drawer)
+	hud_build_row.add_child(terrain_button)
 	var regions_button := Button.new()
 	regions_button.text = "Regions"
 	_set_pixel_button_icon(regions_button, pixel_icons.ui(&"minimap", 24))
@@ -2966,15 +3154,6 @@ func _build_hud() -> Control:
 	_set_pixel_button_icon(trade_button, pixel_icons.ui(&"trade_migration_courier", 24))
 	trade_button.pressed.connect(_toggle_trade_drawer)
 	hud_build_row.add_child(trade_button)
-	var quick_buildings := ["camp", "housing", "farm", "well", "ancillary", "lumber_shack", "mining_facility", "bow_tower"]
-	for id in quick_buildings:
-		var definition := ContentRegistry.get_by_id(&"buildings", StringName(id))
-		var button := Button.new()
-		button.text = String(definition.get("name", id))
-		_set_pixel_button_icon(button, pixel_icons.building(StringName(id), StringName(definition.get("category", "misc")), 24))
-		button.custom_minimum_size = Vector2(82, 56)
-		button.pressed.connect(func() -> void: world_view.begin_placement(StringName(id)))
-		hud_build_row.add_child(button)
 	var cancel := Button.new()
 	cancel.text = "Cancel"
 	cancel.pressed.connect(world_view.cancel_placement)
@@ -3026,6 +3205,8 @@ func _build_hud() -> Control:
 	jobs_drawer = _build_jobs_drawer(layer)
 	meta_drawer = _build_meta_drawer(layer)
 	build_drawer = _build_construction_drawer(layer)
+	materials_drawer = _build_materials_drawer(layer)
+	terrain_drawer = _build_terrain_drawer(layer)
 	spells_drawer = _build_spells_drawer(layer)
 	regions_drawer = _build_regions_drawer(layer)
 	trade_drawer = _build_trade_drawer(layer)
@@ -3625,6 +3806,159 @@ func _populate_meta_drawer(view_id: StringName) -> void:
 				counter_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				meta_catalog_box.add_child(counter_label)
 
+func _build_materials_drawer(parent: Control) -> Control:
+	# Everything the settlement is holding, in one place. The top bar only has room
+	# for five abbreviated totals, which left most materials with nowhere to be
+	# looked up at all.
+	var drawer := PanelContainer.new()
+	drawer.anchor_left = 1.0
+	drawer.anchor_right = 1.0
+	drawer.anchor_bottom = 1.0
+	drawer.offset_left = -430
+	drawer.offset_top = 82
+	drawer.offset_right = -10
+	drawer.offset_bottom = -96
+	drawer.visible = false
+	parent.add_child(drawer)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 8)
+	drawer.add_child(outer)
+	var heading := Label.new()
+	heading.text = "MATERIALS"
+	heading.add_theme_font_size_override("font_size", 24)
+	heading.add_theme_color_override("font_color", Color("6fffd2"))
+	outer.add_child(heading)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(scroll)
+	DragScroll.attach(scroll)
+	materials_box = VBoxContainer.new()
+	materials_box.custom_minimum_size.x = 368
+	materials_box.add_theme_constant_override("separation", 4)
+	scroll.add_child(materials_box)
+	return drawer
+
+func _material_group_title(group: String) -> String:
+	match group:
+		"raw": return "Raw"
+		"ore": return "Ore"
+		"refined": return "Refined"
+		"food": return "Food"
+		"water": return "Water"
+		"currency": return "Currency"
+		"ammunition": return "Ammunition"
+		"weapon": return "Weapons"
+		"armor": return "Armour"
+		"tool": return "Tools"
+		"recovery": return "Recovery"
+		"magic": return "Magic"
+		"loot": return "Loot"
+		"trash": return "Trash"
+		_: return group.capitalize()
+
+func _populate_materials_drawer(snapshot: SimulationSnapshot) -> void:
+	if materials_box == null or snapshot == null:
+		return
+	for child in materials_box.get_children():
+		child.queue_free()
+	var order := ["raw", "ore", "refined", "food", "water", "currency", "ammunition",
+		"tool", "weapon", "armor", "recovery", "magic", "loot", "trash"]
+	var grouped: Dictionary = {}
+	for definition in ContentRegistry.get_all(&"resources"):
+		var group := String(definition.get("group", "misc"))
+		if not grouped.has(group):
+			grouped[group] = []
+		grouped[group].append(definition)
+	var ordered: Array[String] = []
+	for group in order:
+		if grouped.has(group):
+			ordered.append(group)
+	for group in grouped:
+		if not String(group) in ordered:
+			ordered.append(String(group))
+	for group in ordered:
+		var held: Array = []
+		for definition in grouped[group]:
+			var amount := int(snapshot.resources.get(String(definition.id), 0))
+			if amount > 0 or group in ["raw", "refined", "food", "water"]:
+				held.append({"definition": definition, "amount": amount})
+		if held.is_empty():
+			continue
+		var group_label := Label.new()
+		group_label.text = _material_group_title(String(group)).to_upper()
+		group_label.add_theme_color_override("font_color", Color("f4dc62"))
+		group_label.add_theme_font_size_override("font_size", 15)
+		materials_box.add_child(group_label)
+		for entry in held:
+			var definition: Dictionary = entry.definition
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 8)
+			var icon := TextureRect.new()
+			icon.texture = pixel_icons.resource(StringName(definition.id), 20)
+			icon.custom_minimum_size = Vector2(24, 24)
+			icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			row.add_child(icon)
+			var name_label := Label.new()
+			name_label.text = String(definition.get("name", definition.id))
+			name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(name_label)
+			var cap := int(snapshot.resource_caps.get(String(definition.id), 0))
+			var amount_label := Label.new()
+			amount_label.text = "%d / %d" % [int(entry.amount), cap] if cap > 0 else str(int(entry.amount))
+			if cap > 0 and int(entry.amount) >= cap:
+				amount_label.add_theme_color_override("font_color", Color("f4dc62"))
+			row.add_child(amount_label)
+			materials_box.add_child(row)
+
+func _toggle_materials_drawer() -> void:
+	materials_drawer.visible = not materials_drawer.visible
+	if materials_drawer.visible:
+		build_drawer.visible = false
+		jobs_drawer.visible = false
+		spells_drawer.visible = false
+		terrain_drawer.visible = false
+		if latest_snapshot != null:
+			_populate_materials_drawer(latest_snapshot)
+
+func _build_terrain_drawer(parent: Control) -> Control:
+	# The four terrain brushes used to occupy four slots on the bottom bar. They
+	# are one tool, so they live behind one button now.
+	var drawer := PanelContainer.new()
+	drawer.anchor_top = 1.0
+	drawer.anchor_bottom = 1.0
+	drawer.offset_left = 10
+	drawer.offset_top = -320
+	drawer.offset_right = 300
+	drawer.offset_bottom = -96
+	drawer.visible = false
+	parent.add_child(drawer)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	drawer.add_child(box)
+	var title := Label.new()
+	title.text = "TERRAIN"
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color("6fffd2"))
+	box.add_child(title)
+	for terrain_action in [&"clear", &"dig", &"fill", &"restore"]:
+		var button := Button.new()
+		button.text = String(terrain_action).capitalize()
+		button.custom_minimum_size.y = 52
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_set_pixel_button_icon(button, pixel_icons.ui(&"terrain_tools", 24))
+		var chosen: StringName = terrain_action
+		button.pressed.connect(func() -> void:
+			world_view.begin_terrain_work(chosen)
+			drawer.visible = false)
+		box.add_child(button)
+	return drawer
+
+func _toggle_terrain_drawer() -> void:
+	terrain_drawer.visible = not terrain_drawer.visible
+	if terrain_drawer.visible:
+		build_drawer.visible = false
+		materials_drawer.visible = false
+
 func _build_construction_drawer(parent: Control) -> Control:
 	var drawer := PanelContainer.new()
 	drawer.anchor_left = 1.0
@@ -3652,6 +3986,7 @@ func _build_construction_drawer(parent: Control) -> Control:
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	outer.add_child(scroll)
+	DragScroll.attach(scroll)
 	build_catalog_box = VBoxContainer.new()
 	build_catalog_box.custom_minimum_size.x = 348
 	build_catalog_box.add_theme_constant_override("separation", 6)
@@ -3662,36 +3997,108 @@ func _build_construction_drawer(parent: Control) -> Control:
 func _populate_build_catalog(filter_text: String) -> void:
 	if not build_catalog_box:
 		return
+	build_search_query = filter_text.strip_edges().to_lower()
 	for child in build_catalog_box.get_children():
 		child.queue_free()
-	var query := filter_text.strip_edges().to_lower()
-	var definitions: Array = ContentRegistry.get_all(&"buildings").duplicate()
-	definitions.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_key := "%s:%s" % [a.get("category", "misc"), a.get("name", a.id)]
-		var b_key := "%s:%s" % [b.get("category", "misc"), b.get("name", b.id)]
-		return a_key < b_key)
-	var previous_category := ""
-	for definition in definitions:
+	# Searching cuts across every category, so it shows a flat result list.
+	# Otherwise the catalogue is browsed one category at a time rather than as a
+	# single long scroll.
+	if not build_search_query.is_empty():
+		_populate_build_results(_placeable_buildings(), true)
+		return
+	if build_category_filter.is_empty():
+		_populate_build_categories()
+		return
+	_populate_build_category_contents()
+
+func _placeable_buildings() -> Array:
+	var result: Array = []
+	for definition in ContentRegistry.get_all(&"buildings"):
 		if String(definition.get("status", "")) == "legacy_removed":
 			continue
 		if not bool(definition.get("player_placeable", true)):
 			continue
+		result.append(definition)
+	return result
+
+func _build_category_order() -> Array[String]:
+	return ["town_center", "housing", "food_water", "harvesting", "refining", "manufacturing",
+		"storage", "civics", "lighting", "towers", "walls", "roads", "golems", "magic", "trash"]
+
+func _build_category_title(category: String) -> String:
+	match category:
+		"town_center": return "Town Centre"
+		"food_water": return "Food & Water"
+		"civics": return "Civics"
+		"golems": return "Golems"
+		_: return category.replace("_", " ").capitalize()
+
+func _populate_build_categories() -> void:
+	var counts: Dictionary = {}
+	var sample: Dictionary = {}
+	for definition in _placeable_buildings():
+		var category := String(definition.get("category", "misc"))
+		counts[category] = int(counts.get(category, 0)) + 1
+		if not sample.has(category):
+			sample[category] = definition
+	var ordered: Array[String] = []
+	for category in _build_category_order():
+		if counts.has(category):
+			ordered.append(category)
+	for category in counts:
+		if not String(category) in ordered:
+			ordered.append(String(category))
+	for category in ordered:
+		var definition: Dictionary = sample[category]
+		var button := Button.new()
+		button.icon = pixel_icons.building(StringName(definition.id), StringName(category), 24)
+		button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		button.text = "%s  •  %d" % [_build_category_title(String(category)), int(counts[category])]
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.custom_minimum_size.y = 56
+		var chosen := String(category)
+		button.pressed.connect(func() -> void:
+			build_category_filter = chosen
+			_populate_build_catalog(""))
+		build_catalog_box.add_child(button)
+
+func _populate_build_category_contents() -> void:
+	var back := Button.new()
+	back.text = "◀  All Categories"
+	back.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	back.custom_minimum_size.y = 52
+	back.add_theme_color_override("font_color", Color("f4dc62"))
+	back.pressed.connect(func() -> void:
+		build_category_filter = ""
+		_populate_build_catalog(""))
+	build_catalog_box.add_child(back)
+	var heading := Label.new()
+	heading.text = _build_category_title(build_category_filter).to_upper()
+	heading.add_theme_color_override("font_color", Color("f4dc62"))
+	heading.add_theme_font_size_override("font_size", 16)
+	build_catalog_box.add_child(heading)
+	var members: Array = []
+	for definition in _placeable_buildings():
+		if String(definition.get("category", "misc")) == build_category_filter:
+			members.append(definition)
+	_populate_build_results(members, false)
+
+func _populate_build_results(definitions: Array, show_category: bool) -> void:
+	var sorted: Array = definitions.duplicate()
+	sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return String(a.get("name", a.id)) < String(b.get("name", b.id)))
+	var shown := 0
+	for definition in sorted:
 		var name := String(definition.get("name", definition.id))
 		var category := String(definition.get("category", "misc"))
-		if not query.is_empty() and query not in name.to_lower() and query not in category.to_lower():
+		if not build_search_query.is_empty() and build_search_query not in name.to_lower() and build_search_query not in category.to_lower():
 			continue
-		if category != previous_category:
-			var category_label := Label.new()
-			category_label.text = category.replace("_", " ").to_upper()
-			category_label.add_theme_color_override("font_color", Color("f4dc62"))
-			category_label.add_theme_font_size_override("font_size", 16)
-			build_catalog_box.add_child(category_label)
-			previous_category = category
+		shown += 1
 		var building_id := StringName(definition.id)
 		var button := Button.new()
 		button.icon = pixel_icons.building(building_id, StringName(category), 24)
 		button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		button.text = "%s  •  Tiers %d" % [name, int(definition.get("tiers", 1))]
+		button.text = "%s  •  %s" % [name, _build_category_title(category)] if show_category else "%s  •  Tiers %d" % [name, int(definition.get("tiers", 1))]
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.custom_minimum_size.y = 50
 		button.tooltip_text = "Cost: %s" % str(definition.get("cost", {}))
@@ -3699,6 +4106,10 @@ func _populate_build_catalog(filter_text: String) -> void:
 			world_view.begin_placement(building_id)
 			build_drawer.visible = false)
 		build_catalog_box.add_child(button)
+	if shown == 0:
+		var empty := Label.new()
+		empty.text = "Nothing matches that search."
+		build_catalog_box.add_child(empty)
 
 func _build_inspector_drawer(parent: Control) -> Control:
 	var drawer := PanelContainer.new()
@@ -3924,6 +4335,9 @@ func _populate_spell_catalog(filter_text: String = "", category_filter: String =
 func _toggle_build_drawer() -> void:
 	build_drawer.visible = not build_drawer.visible
 	if build_drawer.visible:
+		# Always open on the category list rather than wherever it was left.
+		build_category_filter = ""
+		_populate_build_catalog("")
 		inspector_drawer.visible = false
 		jobs_drawer.visible = false
 		spells_drawer.visible = false
@@ -4278,6 +4692,9 @@ func _show_screen(screen: StringName) -> void:
 	_refresh_tutorial()
 
 func _on_snapshot(snapshot: SimulationSnapshot) -> void:
+	latest_snapshot = snapshot
+	if materials_drawer != null and materials_drawer.visible:
+		_populate_materials_drawer(snapshot)
 	if not hud:
 		return
 	if phone_layout:
