@@ -134,6 +134,16 @@ jobs:
             exit 1
           fi
 
+      # The smoke suite never builds the interface, so it cannot see a control
+      # that swallows pointer input before the world view receives it. That
+      # shipped once as a game where nothing could be tapped, dragged or zoomed.
+      - name: Check pointer input reaches the world
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          godot --headless --path . --quit-after 600 -- --input-probe 2>&1 | tee build/input-probe.log
+          grep -q "INPUT PROBE" build/input-probe.log
+
       - name: Export Godot project to Xcode
         timeout-minutes: 20
         run: |

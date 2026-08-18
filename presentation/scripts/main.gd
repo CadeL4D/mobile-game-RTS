@@ -170,7 +170,9 @@ func _ready() -> void:
 	WorldCampaignService.transfer_completed.connect(func(transfer: Dictionary) -> void: _show_toast("%s arrived in %s." % [String(transfer.kind).capitalize(), String(transfer.destination).replace("_", " ").capitalize()]))
 	WorldCampaignService.transfer_failed.connect(func(_transfer: Dictionary, _reason: String) -> void: _show_toast("Regional transfer failed; reserved cargo returned."))
 	_show_screen(AppController.current_screen)
-	if "--capture-ui" in OS.get_cmdline_user_args():
+	if "--input-probe" in OS.get_cmdline_user_args():
+		call_deferred("_probe_world_input")
+	elif "--capture-ui" in OS.get_cmdline_user_args():
 		call_deferred("_capture_ui")
 	elif "--capture-play" in OS.get_cmdline_user_args():
 		call_deferred("_capture_play")
@@ -741,6 +743,91 @@ func _capture_chunked_terrain_review() -> void:
 	errors.append(_write_capture("res://build/captures/review_terrain_chunked.png"))
 	print("TERRAIN CHUNK CAPTURE: complete=%s stats=%s seam_cell=%s" % [str(completed), str(world_view.get_terrain_chunk_stats()), seam_cell])
 	get_tree().quit(1 if not completed or errors.any(func(error: int) -> bool: return error != OK) else 0)
+
+func _probe_world_input() -> void:
+	# Diagnostic: prove whether pointer input actually reaches the world view on
+	# the play screen, or is swallowed by a full-rect Control on the way down.
+	AppController.select_mode(&"traditional")
+	AppController.select_region(&"applemeadow")
+	AppController.establish_selected_region()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var centre := get_viewport_rect().size * 0.5
+
+	world_view.touch_points.clear()
+	var touch := InputEventScreenTouch.new()
+	touch.index = 0
+	touch.position = centre
+	touch.pressed = true
+	Input.parse_input_event(touch)
+	await get_tree().process_frame
+	var touch_reached := world_view.touch_points.size() > 0
+	var release := InputEventScreenTouch.new()
+	release.index = 0
+	release.position = centre
+	release.pressed = false
+	Input.parse_input_event(release)
+	await get_tree().process_frame
+
+	world_view.dragging = false
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.position = centre
+	click.pressed = true
+	Input.parse_input_event(click)
+	await get_tree().process_frame
+	var mouse_reached := world_view.dragging
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.position = centre
+	up.pressed = false
+	Input.parse_input_event(up)
+	await get_tree().process_frame
+
+	# Nothing legitimate covers the middle of the world during play, so any visible
+	# control that both sits over it and stops pointer events is a blocker,
+	# however deep in the interface tree it lives.
+	var blockers: Array[String] = []
+	var pending: Array[Node] = [ui_layer]
+	while not pending.is_empty():
+		var node: Node = pending.pop_back()
+		for child in node.get_children():
+			if child is Control and not child.visible:
+				continue
+			pending.append(child)
+		if node is Control and node.visible and node.mouse_filter == Control.MOUSE_FILTER_STOP and node.get_global_rect().has_point(centre):
+			blockers.append("%s(%s)%s" % [node.name, node.get_class(), node.get_global_rect().size])
+	# The HUD must still receive its own input after being made transparent to it.
+	# The dummy display server does no GUI picking, so this half only runs when a
+	# real display is present.
+	var can_check_hud := DisplayServer.get_name() != "headless"
+	var paused_before := SimulationHost.paused
+	var button_centre := pause_button.get_global_rect().get_center()
+	var button_press := InputEventMouseButton.new()
+	button_press.button_index = MOUSE_BUTTON_LEFT
+	button_press.position = button_centre
+	button_press.pressed = true
+	Input.parse_input_event(button_press)
+	await get_tree().process_frame
+	var button_release := InputEventMouseButton.new()
+	button_release.button_index = MOUSE_BUTTON_LEFT
+	button_release.position = button_centre
+	button_release.pressed = false
+	Input.parse_input_event(button_release)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var hud_reached := SimulationHost.paused != paused_before if can_check_hud else true
+
+	print("INPUT PROBE touch_reached_world=%s mouse_reached_world=%s hud_button_still_works=%s blockers=%s" % [touch_reached, mouse_reached, ("skipped(headless)" if not can_check_hud else str(hud_reached)), blockers])
+	# The dummy display server does no GUI picking, so injected events reach the
+	# world even when a Control would swallow them on a real device. The geometric
+	# scan is what makes this check meaningful headless: any visible full-screen
+	# MOUSE_FILTER_STOP control over the play area is the bug, whatever the
+	# injected events happened to do.
+	var ok := touch_reached and mouse_reached and hud_reached and blockers.is_empty()
+	if not ok:
+		push_error("Pointer input cannot reach the world view. Blocking controls: %s" % str(blockers))
+	get_tree().quit(0 if ok else 1)
 
 func _capture_ui() -> void:
 	await get_tree().process_frame
@@ -2762,6 +2849,11 @@ func _refresh_selected_region() -> void:
 func _build_hud() -> Control:
 	var layer := Control.new()
 	layer.theme = theme
+	# The HUD root is a full-screen container, and Control defaults to
+	# MOUSE_FILTER_STOP, so it swallowed every tap, click, drag and wheel event
+	# before the world view could see any of them. Its children are hit-tested on
+	# their own, so ignoring input here costs the panels and buttons nothing.
+	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_layer.add_child(layer)
 	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud_top_panel = PanelContainer.new()
