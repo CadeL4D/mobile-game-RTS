@@ -37,6 +37,7 @@ func _run() -> void:
 		_test_settlement_state_survives_save_load()
 		_test_event_damage_refreshes_navigation()
 		_test_region_graph_is_mutual()
+		_test_build_menu_renders_every_building()
 		_test_reference_parity_fixes()
 		_test_physical_logistics_live_loop()
 		_test_save_round_trip()
@@ -178,6 +179,7 @@ func _run() -> void:
 	_test_settlement_state_survives_save_load()
 	_test_event_damage_refreshes_navigation()
 	_test_region_graph_is_mutual()
+	_test_build_menu_renders_every_building()
 	_test_reference_parity_fixes()
 	_test_physical_logistics_live_loop()
 	_test_save_round_trip()
@@ -2434,6 +2436,28 @@ func _test_physical_inventory_and_reservations() -> void:
 	_assert(atomic_inventory.consume_available(&"rock", 5) and atomic_inventory.get_total(&"rock") == 3, "Aggregate consumption must consume exactly the unreserved requested amount")
 	var migrated_tool = atomic_inventory.create_unique_item(&"iron_sword", &"weapon", 100, 100, &"hand", {}, PHYSICAL_INVENTORY.LocationState.CONTAINER, Vector2i.ZERO, 12)
 	_assert(migrated_tool != null and atomic_inventory.consume_available(&"iron_sword", 1) and atomic_inventory.get_total(&"iron_sword") == 0, "Authoritative consumption must support unique item instances migrated from older saves")
+
+func _test_build_menu_renders_every_building() -> void:
+	# The construction menu derives its summary from catalogue fields, so a field
+	# written in an unexpected shape crashes the whole menu rather than one row.
+	# "harvests" is a plain string on harvesting buildings while the code assumed a
+	# list, which took the game down the moment that category was opened. Every
+	# building is exercised here so the next mismatch fails a test instead.
+	var main_script := preload("res://presentation/scripts/main.gd")
+	var screen = main_script.new()
+	var checked := 0
+	for definition in registry.get_all(&"buildings"):
+		if String(definition.get("status", "")) == "legacy_removed":
+			continue
+		var summary: String = screen._building_summary(definition)
+		_assert(not summary.is_empty(), "Building %s must produce a menu summary" % definition.id)
+		var footprint: Array = definition.get("footprint", [1, 1])
+		_assert(footprint.size() >= 2 and int(footprint[0]) > 0 and int(footprint[1]) > 0, "Building %s must declare a positive footprint" % definition.id)
+		for resource_id in definition.get("cost", {}):
+			_assert(not registry.get_by_id(&"resources", StringName(resource_id)).is_empty(), "Building %s costs unknown resource %s" % [definition.id, resource_id])
+		checked += 1
+	screen.free()
+	_assert(checked >= 90, "The menu check must cover the whole catalogue (saw %d)" % checked)
 
 func _test_region_graph_is_mutual() -> void:
 	# WorldCampaignService._are_adjacent only inspects the source region's list, so

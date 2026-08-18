@@ -1005,7 +1005,11 @@ func _capture_costs() -> void:
 		SimulationHost.advance_tick()
 	await get_tree().process_frame
 	_toggle_build_drawer()
-	build_category_filter = "food_water"
+	for category in ["town_center", "housing", "food_water", "harvesting", "refining", "manufacturing", "storage", "civics", "lighting", "towers", "walls", "roads", "golems", "magic", "trash"]:
+		build_category_filter = category
+		_populate_build_catalog("")
+		await get_tree().process_frame
+	build_category_filter = "harvesting"
 	_populate_build_catalog("")
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -3851,9 +3855,9 @@ func _building_summary(definition: Dictionary) -> String:
 	# from what the building actually does. Without it the menu gave a name, a size
 	# and a price and never said what you were buying.
 	var parts: Array[String] = []
-	var jobs: Array = definition.get("jobs", [])
+	var jobs: Array = definition.get("jobs", []) if definition.get("jobs", []) is Array else []
 	var slots := int(definition.get("worker_slots", 0))
-	var slots_by_tier: Array = definition.get("worker_slots_by_tier", [])
+	var slots_by_tier: Array = definition.get("worker_slots_by_tier", []) if definition.get("worker_slots_by_tier", []) is Array else []
 	if not slots_by_tier.is_empty():
 		slots = int(slots_by_tier[0])
 	if not jobs.is_empty() and slots > 0:
@@ -3865,9 +3869,17 @@ func _building_summary(definition: Dictionary) -> String:
 	var recipe: Dictionary = definition.get("passive_recipe", {})
 	for output_id in recipe.get("outputs", {}):
 		parts.append("Makes %s" % String(ContentRegistry.get_by_id(&"resources", StringName(output_id)).get("name", output_id)))
-	var harvests: Array = definition.get("harvests", [])
-	if not harvests.is_empty():
-		parts.append("Harvests %s" % String(ContentRegistry.get_by_id(&"resources", StringName(harvests[0])).get("name", harvests[0])))
+	# The catalogue writes this either as a single resource id or as a list of
+	# them, so both shapes have to be accepted. Assuming the list form crashed the
+	# whole menu the moment a harvesting building was shown.
+	var harvests: Variant = definition.get("harvests", [])
+	var harvested_id := ""
+	if harvests is String or harvests is StringName:
+		harvested_id = String(harvests)
+	elif harvests is Array and not (harvests as Array).is_empty():
+		harvested_id = String((harvests as Array)[0])
+	if not harvested_id.is_empty():
+		parts.append("Harvests %s" % String(ContentRegistry.get_by_id(&"resources", StringName(harvested_id)).get("name", harvested_id)))
 	var water: Dictionary = definition.get("water", {})
 	match String(water.get("role", "")):
 		"source": parts.append("Produces clean water")
@@ -3875,7 +3887,7 @@ func _building_summary(definition: Dictionary) -> String:
 		"purifier": parts.append("Purifies dirty water")
 		"rain": parts.append("Collects rainwater")
 	var storage: Dictionary = definition.get("storage_profile", {})
-	var capacities: Array = storage.get("capacity_by_tier", [])
+	var capacities: Array = storage.get("capacity_by_tier", []) if storage.get("capacity_by_tier", []) is Array else []
 	if not capacities.is_empty():
 		parts.append("Stores %d" % int(capacities[0]))
 	var tower: Dictionary = definition.get("tower", {})
