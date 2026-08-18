@@ -77,6 +77,7 @@ var selected_region_label: Label
 var selected_region_detail: Label
 var region_action_button: Button
 var resource_label: Label
+var hud_resource_chips: Dictionary = {}
 var population_label: Label
 var time_label: Label
 var influence_label: Label
@@ -176,7 +177,9 @@ func _ready() -> void:
 	WorldCampaignService.transfer_completed.connect(func(transfer: Dictionary) -> void: _show_toast("%s arrived in %s." % [String(transfer.kind).capitalize(), String(transfer.destination).replace("_", " ").capitalize()]))
 	WorldCampaignService.transfer_failed.connect(func(_transfer: Dictionary, _reason: String) -> void: _show_toast("Regional transfer failed; reserved cargo returned."))
 	_show_screen(AppController.current_screen)
-	if "--capture-materials" in OS.get_cmdline_user_args():
+	if "--capture-costs" in OS.get_cmdline_user_args():
+		call_deferred("_capture_costs")
+	elif "--capture-materials" in OS.get_cmdline_user_args():
 		call_deferred("_capture_materials")
 	elif "--profile-frames" in OS.get_cmdline_user_args():
 		call_deferred("_profile_frames")
@@ -993,6 +996,20 @@ func _probe_world_input() -> void:
 	if not ok:
 		push_error("Pointer input cannot reach the world view. Blocking controls: %s" % str(blockers))
 	get_tree().quit(0 if ok else 1)
+
+func _capture_costs() -> void:
+	AppController.select_mode(&"traditional")
+	AppController.select_region(&"applemeadow")
+	AppController.establish_selected_region()
+	for _index in 60:
+		SimulationHost.advance_tick()
+	await get_tree().process_frame
+	_toggle_build_drawer()
+	build_category_filter = "food_water"
+	_populate_build_catalog("")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_save_capture("res://build/captures/costs.png")
 
 func _capture_materials() -> void:
 	AppController.select_mode(&"traditional")
@@ -3048,15 +3065,38 @@ func _build_hud() -> Control:
 	_add_hud_pixel_icon(hud_top_row, &"hud_population")
 	population_label = _label("Pop 20 • Kids 3 • Homes 0", 17)
 	hud_top_row.add_child(population_label)
-	_add_hud_pixel_icon(hud_top_row, &"hud_resources")
-	resource_label = _label("W32/200 R32/200 F96 H₂O96 C8", 16)
-	resource_label.mouse_filter = Control.MOUSE_FILTER_STOP
-	resource_label.tooltip_text = "Open the full materials list"
-	resource_label.gui_input.connect(func(event: InputEvent) -> void:
+	# The five headline materials read as their own icons rather than as "W32/200
+	# R32/200 F96 H2O96 C8", which told a new player nothing.
+	hud_resource_chips.clear()
+	var resource_strip := HBoxContainer.new()
+	resource_strip.add_theme_constant_override("separation", 12)
+	resource_strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	resource_strip.alignment = BoxContainer.ALIGNMENT_CENTER
+	resource_strip.mouse_filter = Control.MOUSE_FILTER_STOP
+	resource_strip.tooltip_text = "Open the full materials list"
+	resource_strip.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			_toggle_materials_drawer())
-	resource_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	resource_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud_top_row.add_child(resource_strip)
+	for headline in [&"wood", &"rock", &"raw_vegetables", &"clean_water", &"crystal"]:
+		var chip := HBoxContainer.new()
+		chip.add_theme_constant_override("separation", 4)
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var chip_icon := TextureRect.new()
+		chip_icon.texture = pixel_icons.resource(headline, 20)
+		chip_icon.custom_minimum_size = Vector2(22, 22)
+		chip_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		chip_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		chip_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip_icon.tooltip_text = String(ContentRegistry.get_by_id(&"resources", headline).get("name", headline))
+		chip.add_child(chip_icon)
+		var chip_label := _label("0", 16)
+		chip_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(chip_label)
+		resource_strip.add_child(chip)
+		hud_resource_chips[headline] = chip_label
+	resource_label = _label("", 16)
+	resource_label.visible = false
 	hud_top_row.add_child(resource_label)
 	_add_hud_pixel_icon(hud_top_row, &"hud_influence")
 	influence_label = _label("I 800/800 • XP 0", 16)
@@ -3806,6 +3846,59 @@ func _populate_meta_drawer(view_id: StringName) -> void:
 				counter_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				meta_catalog_box.add_child(counter_label)
 
+func _building_summary(definition: Dictionary) -> String:
+	# Derived from the catalogue rather than written prose, so it cannot drift away
+	# from what the building actually does. Without it the menu gave a name, a size
+	# and a price and never said what you were buying.
+	var parts: Array[String] = []
+	var jobs: Array = definition.get("jobs", [])
+	var slots := int(definition.get("worker_slots", 0))
+	var slots_by_tier: Array = definition.get("worker_slots_by_tier", [])
+	if not slots_by_tier.is_empty():
+		slots = int(slots_by_tier[0])
+	if not jobs.is_empty() and slots > 0:
+		var job_definition := ContentRegistry.get_by_id(&"jobs", StringName(jobs[0]))
+		parts.append("Employs %d %s" % [slots, String(job_definition.get("name", jobs[0]))])
+	var housing := int(definition.get("housing_capacity", 0))
+	if housing > 0:
+		parts.append("Houses %d" % housing)
+	var recipe: Dictionary = definition.get("passive_recipe", {})
+	for output_id in recipe.get("outputs", {}):
+		parts.append("Makes %s" % String(ContentRegistry.get_by_id(&"resources", StringName(output_id)).get("name", output_id)))
+	var harvests: Array = definition.get("harvests", [])
+	if not harvests.is_empty():
+		parts.append("Harvests %s" % String(ContentRegistry.get_by_id(&"resources", StringName(harvests[0])).get("name", harvests[0])))
+	var water: Dictionary = definition.get("water", {})
+	match String(water.get("role", "")):
+		"source": parts.append("Produces clean water")
+		"fountain": parts.append("Villagers drink here")
+		"purifier": parts.append("Purifies dirty water")
+		"rain": parts.append("Collects rainwater")
+	var storage: Dictionary = definition.get("storage_profile", {})
+	var capacities: Array = storage.get("capacity_by_tier", [])
+	if not capacities.is_empty():
+		parts.append("Stores %d" % int(capacities[0]))
+	var tower: Dictionary = definition.get("tower", {})
+	if not tower.is_empty():
+		match String(tower.get("role", "")):
+			"attack": parts.append("Defends the settlement")
+			"attract": parts.append("Pulls in loose resources")
+			"repair_golem": parts.append("Repairs golems")
+	var settlement_range: Dictionary = definition.get("settlement_range", {})
+	if int(settlement_range.get("base", 0)) > 0:
+		parts.append("Extends build range %d" % int(settlement_range.base))
+	var animals := int(definition.get("animal_capacity", 0)) + int(definition.get("clucker_capacity", 0)) + int(definition.get("doggo_capacity", 0))
+	if animals > 0:
+		parts.append("Holds %d animals" % animals)
+	if not definition.get("golem", {}).is_empty():
+		parts.append("Builds golems")
+	match String(definition.get("service", {}).get("role", "")):
+		"medical": parts.append("Treats the sick")
+		"maintenance": parts.append("Repairs buildings")
+	if parts.is_empty():
+		return _build_category_title(String(definition.get("category", ""))).to_lower()
+	return "  •  ".join(parts)
+
 func _build_materials_drawer(parent: Control) -> Control:
 	# Everything the settlement is holding, in one place. The top bar only has room
 	# for five abbreviated totals, which left most materials with nowhere to be
@@ -4096,16 +4189,79 @@ func _populate_build_results(definitions: Array, show_category: bool) -> void:
 		shown += 1
 		var building_id := StringName(definition.id)
 		var button := Button.new()
-		button.icon = pixel_icons.building(building_id, StringName(category), 24)
-		button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		button.text = "%s  •  %s" % [name, _build_category_title(category)] if show_category else "%s  •  Tiers %d" % [name, int(definition.get("tiers", 1))]
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		button.custom_minimum_size.y = 50
-		button.tooltip_text = "Cost: %s" % str(definition.get("cost", {}))
+		button.custom_minimum_size.y = 86
 		button.pressed.connect(func() -> void:
 			world_view.begin_placement(building_id)
 			build_drawer.visible = false)
 		build_catalog_box.add_child(button)
+		# The cost used to live in a tooltip, which a touch screen never shows, so
+		# there was no way to know what a building needed before arming it.
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_theme_constant_override("separation", 8)
+		row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		row.offset_left = 8
+		row.offset_right = -8
+		button.add_child(row)
+		var building_icon := TextureRect.new()
+		building_icon.texture = pixel_icons.building(building_id, StringName(category), 24)
+		building_icon.custom_minimum_size = Vector2(28, 28)
+		building_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		building_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		building_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(building_icon)
+		var text_column := VBoxContainer.new()
+		text_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		text_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		text_column.add_theme_constant_override("separation", 1)
+		row.add_child(text_column)
+		var footprint: Array = definition.get("footprint", [1, 1])
+		var title := Label.new()
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		title.text = "%s   %d×%d" % [name, int(footprint[0]), int(footprint[1])]
+		text_column.add_child(title)
+		var cost_row := HBoxContainer.new()
+		cost_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cost_row.add_theme_constant_override("separation", 10)
+		text_column.add_child(cost_row)
+		var cost: Dictionary = definition.get("cost", {})
+		var affordable := true
+		if cost.is_empty():
+			var free_label := Label.new()
+			free_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			free_label.text = "No materials"
+			free_label.add_theme_font_size_override("font_size", 14)
+			free_label.add_theme_color_override("font_color", Color("9ab7a6"))
+			cost_row.add_child(free_label)
+		for resource_id in cost:
+			var required := int(cost[resource_id])
+			var held := int(latest_snapshot.resources.get(String(resource_id), 0)) if latest_snapshot != null else 0
+			if held < required:
+				affordable = false
+			var cost_icon := TextureRect.new()
+			cost_icon.texture = pixel_icons.resource(StringName(resource_id), 16)
+			cost_icon.custom_minimum_size = Vector2(18, 18)
+			cost_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			cost_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			cost_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cost_row.add_child(cost_icon)
+			var cost_label := Label.new()
+			cost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cost_label.text = str(required)
+			cost_label.add_theme_font_size_override("font_size", 15)
+			# Anything the settlement cannot currently pay for is called out rather
+			# than left for the player to work out after the placement is refused.
+			cost_label.add_theme_color_override("font_color", Color("f0e6d2") if held >= required else Color("e2795f"))
+			cost_row.add_child(cost_label)
+		var summary := Label.new()
+		summary.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		summary.text = _building_summary(definition)
+		summary.add_theme_font_size_override("font_size", 13)
+		summary.add_theme_color_override("font_color", Color("9ab7a6"))
+		text_column.add_child(summary)
+		if not affordable:
+			title.add_theme_color_override("font_color", Color("c9a58f"))
 	if shown == 0:
 		var empty := Label.new()
 		empty.text = "Nothing matches that search."
@@ -4691,6 +4847,15 @@ func _show_screen(screen: StringName) -> void:
 		_refresh_selected_region()
 	_refresh_tutorial()
 
+func _update_resource_chips(snapshot: SimulationSnapshot) -> void:
+	for resource_id in hud_resource_chips:
+		var held := int(snapshot.resources.get(String(resource_id), 0))
+		var cap := int(snapshot.resource_caps.get(String(resource_id), 0))
+		var chip_label: Label = hud_resource_chips[resource_id]
+		chip_label.text = "%d/%d" % [held, cap] if cap > 0 else str(held)
+		# Full stores mean production is being wasted, so they are called out.
+		chip_label.add_theme_color_override("font_color", Color("f4dc62") if cap > 0 and held >= cap else Color("f0e6d2"))
+
 func _on_snapshot(snapshot: SimulationSnapshot) -> void:
 	latest_snapshot = snapshot
 	if materials_drawer != null and materials_drawer.visible:
@@ -4699,11 +4864,11 @@ func _on_snapshot(snapshot: SimulationSnapshot) -> void:
 		return
 	if phone_layout:
 		population_label.text = "P%d  N%d  H%d/%d" % [snapshot.population, snapshot.population_groups.get("nomads", 0), mini(snapshot.population, snapshot.housing_capacity), snapshot.housing_capacity]
-		resource_label.text = "W%d R%d F%d H%d C%d" % [snapshot.resources.get("wood", 0), snapshot.resources.get("rock", 0), snapshot.resources.get("raw_vegetables", 0), snapshot.resources.get("clean_water", 0), snapshot.resources.get("crystal", 0)]
+		_update_resource_chips(snapshot)
 		influence_label.text = ("I∞" if bool(SimulationHost.mode_rules.get("unlimited_influence", false)) else "I%d" % snapshot.influence) + "  E%d  F%d" % [snapshot.resources.get("energy", 0), snapshot.resources.get("faith", 0)]
 	else:
 		population_label.text = "Pop %d • Kids %d • Nomads %d • Homes %d/%d" % [snapshot.population, snapshot.population_groups.get("children", 0), snapshot.population_groups.get("nomads", 0), mini(snapshot.population, snapshot.housing_capacity), snapshot.housing_capacity]
-		resource_label.text = "W%d/%d R%d/%d F%d H₂O%d C%d" % [snapshot.resources.get("wood", 0), snapshot.resource_caps.get("wood", 0), snapshot.resources.get("rock", 0), snapshot.resource_caps.get("rock", 0), snapshot.resources.get("raw_vegetables", 0), snapshot.resources.get("clean_water", 0), snapshot.resources.get("crystal", 0)]
+		_update_resource_chips(snapshot)
 		influence_label.text = "I %d/%d • XP %d" % [snapshot.influence, snapshot.max_influence, snapshot.god_xp]
 	if not snapshot.monsters.is_empty():
 		influence_label.text += "  •  Threat %d" % snapshot.monsters.size()

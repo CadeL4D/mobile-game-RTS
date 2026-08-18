@@ -674,9 +674,10 @@ func _attempt_placement(cell: Vector2i) -> void:
 	var definition := ContentRegistry.get_by_id(&"buildings", pending_building_id)
 	var footprint_data: Array = definition.get("footprint", [1, 1])
 	var footprint := Vector2i(int(footprint_data[0]), int(footprint_data[1]))
-	if not _is_valid_placement(cell, footprint):
+	var problem := placement_problem(cell, footprint)
+	if not problem.is_empty():
 		AudioDirector.play_cue(&"invalid_action")
-		placement_rejected.emit("That building cannot be placed there.")
+		placement_rejected.emit(problem)
 		return
 	SimulationHost.submit(GameCommand.place_building(SimulationHost.tick, pending_building_id, cell))
 
@@ -794,23 +795,30 @@ func clear_selection() -> void:
 	entity_selected.emit(selected_kind, selected_entity_id)
 	queue_redraw()
 
-func _is_valid_placement(cell: Vector2i, footprint: Vector2i) -> bool:
-	if current_blueprint == null or not current_blueprint.is_buildable(cell, footprint):
-		return false
+func placement_problem(cell: Vector2i, footprint: Vector2i) -> String:
+	# Returns "" when the spot is fine. A single "cannot be placed there" told the
+	# player nothing about which rule they had broken or where to go instead.
+	if current_blueprint == null:
+		return "No region is loaded."
+	if not current_blueprint.is_buildable(cell, footprint):
+		return "The ground here is water, cliff or uneven — find level, dry land."
 	if not bool(SimulationHost.mode_rules.get("sandbox_tools", false)) and not pending_building_id.is_empty():
 		if pending_building_id == &"camp":
 			if latest_snapshot:
 				for building in latest_snapshot.buildings:
 					if String(building.get("definition_id", "")) == "camp" and not bool(building.get("destroyed", false)):
-						return false
+						return "You already have a Camp; upgrade it instead of placing another."
 		elif not SimulationHost.is_within_settlement_range(cell, footprint):
-			return false
+			return "Outside your build range — build closer to the Camp, or extend the range with a Fire Pit."
 	if latest_snapshot:
 		var rect := Rect2i(cell, footprint)
 		for building in latest_snapshot.buildings:
 			if rect.intersects(Rect2i(Vector2i(building.x, building.y), Vector2i(building.width, building.height))):
-				return false
-	return true
+				return "%s is already standing here." % String(building.get("name", "Another building"))
+	return ""
+
+func _is_valid_placement(cell: Vector2i, footprint: Vector2i) -> bool:
+	return placement_problem(cell, footprint).is_empty()
 
 func _get_terrain_texture(blueprint: RegionBlueprint, season: StringName) -> ImageTexture:
 	var cache_key := "%d:%s" % [blueprint.get_instance_id(), String(season)]
@@ -1621,6 +1629,7 @@ func _draw() -> void:
 		_draw_event_atmosphere(latest_snapshot)
 	draw_profile_usec["entities_weather"] = Time.get_ticks_usec() - entities_started
 	if not pending_building_id.is_empty():
+		_draw_buildable_area()
 		_draw_placement_ghost()
 	elif not pending_spell_id.is_empty():
 		_draw_spell_target()
@@ -4761,6 +4770,22 @@ func _draw_night_tint(day_fraction: float) -> void:
 				var radius := 42.0 + sin(float(latest_snapshot.tick) * 0.12) * 3.0
 				draw_circle(center, radius, Color(0.95, 0.90, 0.45, 0.12 * night_strength))
 				draw_circle(center, radius * 0.5, Color(1.0, 0.96, 0.70, 0.22 * night_strength))
+
+func _draw_buildable_area() -> void:
+	# While a placement is armed, show the ground that will actually accept it, so
+	# "where do I put this" is answered on the map instead of by trial and error.
+	if latest_snapshot == null or pending_building_id.is_empty() or pending_building_id == &"camp":
+		return
+	if bool(SimulationHost.mode_rules.get("sandbox_tools", false)):
+		return
+	for building in latest_snapshot.buildings:
+		var range: int = SimulationHost.get_building_settlement_range(building)
+		if range <= 0:
+			continue
+		var center := Vector2(float(building.x) + float(building.width) * 0.5, float(building.y) + float(building.height) * 0.5) * TILE_PIXELS
+		var radius := float(range) * TILE_PIXELS
+		draw_circle(center, radius, Color(0.20, 0.78, 0.52, 0.055))
+		draw_arc(center, radius, 0.0, TAU, maxi(32, range * 2), Color(0.42, 0.95, 0.70, 0.42), 1.5)
 
 func _draw_placement_ghost() -> void:
 	var definition := ContentRegistry.get_by_id(&"buildings", pending_building_id)
