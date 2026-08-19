@@ -8,8 +8,18 @@ signal spell_changed(spell_id: StringName)
 signal terrain_action_changed(action: StringName)
 
 const TILE_PIXELS := 8.0
+# Detailed per-cell drawing is only affordable once the view is close enough that
+# few cells are on screen. The old 0.94 threshold left a band from there to about
+# 1.6 where full detail was drawn for the whole region at once: measured at 167 ms
+# a frame — six frames a second — against 0.8 ms just below the threshold and
+# 2.2 ms above it. Anything further out than this uses the cheap surface pass.
+const SURFACE_LOD_ZOOM := 1.6
+const VILLAGE_ZOOM := 1.5
 const MIN_ZOOM := 0.32
-const MAX_ZOOM := 2.4
+# The world is drawn at eight pixels a cell, so the old 2.4 ceiling meant a
+# villager could never be more than nineteen pixels tall. Raised so the pixel art
+# the game already draws can actually be seen.
+const MAX_ZOOM := 4.0
 const TERRAIN_TILE_KIND_COUNT := 9
 const TERRAIN_MASK_PIXELS_PER_CELL := 4
 const TERRAIN_TEXTURE_CACHE_LIMIT := 3
@@ -59,6 +69,7 @@ var pending_terrain_action: StringName = &""
 var pointer_cell := Vector2i.ZERO
 var last_drawn_camera_state := Vector3.INF
 var debug_draw_count := 0
+var debug_draw_usec := 0.0
 
 var dragging := false
 var drag_distance := 0.0
@@ -175,7 +186,9 @@ func _on_region_started(blueprint: RegionBlueprint) -> void:
 	terrain_detail_noise.frequency = 0.038 * terrain_noise_scale
 	camera.enabled = true
 	camera.position = Vector2(blueprint.starting_cell) * TILE_PIXELS
-	camera.zoom = Vector2(0.78, 0.78)
+	# Open inside the village rather than above the whole region, and stay just
+	# under SURFACE_LOD_ZOOM so the opening view is on the cheap drawing path.
+	camera.zoom = Vector2(VILLAGE_ZOOM, VILLAGE_ZOOM)
 	_prepare_terrain_water_accents(blueprint)
 	_restart_terrain_chunk_generation()
 	pending_building_id = &"camp"
@@ -1540,11 +1553,12 @@ func _tile_color(tile: int, biome: StringName, x: int, y: int, season: StringNam
 
 func _draw() -> void:
 	debug_draw_count += 1
+	var _draw_started := Time.get_ticks_usec()
 	if current_blueprint == null:
 		return
 	var profile_started := Time.get_ticks_usec()
 	var visible_cells := _visible_cell_rect(10.0)
-	var use_surface_lod := camera != null and camera.zoom.x < 0.94
+	var use_surface_lod := camera != null and camera.zoom.x < SURFACE_LOD_ZOOM
 	resource_lod_overlay_sprite.visible = use_surface_lod and resource_lod_overlay_sprite.texture != null
 	corruption_overlay_sprite.visible = use_surface_lod and corruption_overlay_sprite.texture != null
 	terrain_effect_overlay_sprite.visible = use_surface_lod and terrain_effect_overlay_sprite.texture != null
@@ -1636,6 +1650,7 @@ func _draw() -> void:
 	elif not pending_terrain_action.is_empty():
 		_draw_terrain_work_preview()
 	draw_profile_usec["total"] = Time.get_ticks_usec() - profile_started
+	debug_draw_usec += float(Time.get_ticks_usec() - _draw_started)
 
 func _draw_held_entity(held: Dictionary) -> void:
 	if held.is_empty():
@@ -1856,7 +1871,7 @@ func _draw_terrain_work_preview() -> void:
 	draw_rect(rect.grow(1.0), color, false, 1.5)
 
 func _draw_resource_nodes(nodes: Array, corrupted_cells: Dictionary = {}, visible_cells: Rect2 = Rect2()) -> void:
-	if camera != null and camera.zoom.x < 0.94:
+	if camera != null and camera.zoom.x < SURFACE_LOD_ZOOM:
 		return
 	# Wood remains individually addressable to the simulation, but living crowns
 	# are the connected forest material rendered by terrain chunks. Resource nodes
@@ -1875,7 +1890,7 @@ func _draw_resource_nodes(nodes: Array, corrupted_cells: Dictionary = {}, visibl
 			material_depth = _connected_material_depth(current_blueprint, resource_cell.x, resource_cell.y, material_family, 3)
 			center = _embedded_resource_center(resource_cell, center, material_family, material_depth)
 		var corrupted := corrupted_cells.has("%d:%d" % [int(node.x), int(node.y)])
-		if camera != null and camera.zoom.x < 0.94:
+		if camera != null and camera.zoom.x < SURFACE_LOD_ZOOM:
 			var lod_object: StringName = {
 				"wood": &"stump" if amount <= 0 else &"tree",
 				"rock": &"rubble" if amount <= 0 else &"rock",

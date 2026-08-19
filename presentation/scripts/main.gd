@@ -177,7 +177,11 @@ func _ready() -> void:
 	WorldCampaignService.transfer_completed.connect(func(transfer: Dictionary) -> void: _show_toast("%s arrived in %s." % [String(transfer.kind).capitalize(), String(transfer.destination).replace("_", " ").capitalize()]))
 	WorldCampaignService.transfer_failed.connect(func(_transfer: Dictionary, _reason: String) -> void: _show_toast("Regional transfer failed; reserved cargo returned."))
 	_show_screen(AppController.current_screen)
-	if "--capture-costs" in OS.get_cmdline_user_args():
+	if "--frame-budget" in OS.get_cmdline_user_args():
+		call_deferred("_probe_frame_budget")
+	elif "--capture-zoom" in OS.get_cmdline_user_args():
+		call_deferred("_capture_zoom")
+	elif "--capture-costs" in OS.get_cmdline_user_args():
 		call_deferred("_capture_costs")
 	elif "--capture-materials" in OS.get_cmdline_user_args():
 		call_deferred("_capture_materials")
@@ -772,9 +776,20 @@ func _profile_frames() -> void:
 	sim.submit(GameCommand.place_building(sim.tick, &"camp", sim.blueprint.starting_cell - Vector2i(6, 6)))
 	for _warm in 3000:
 		sim.advance_tick()
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--zoom="):
+			var requested := float(argument.split("=")[1])
+			world_view.camera.zoom = Vector2(requested, requested)
+	# Terrain streams in for many seconds after a region starts, and measuring
+	# through it says more about chunk generation than about steady play.
+	var settle_frames := 0
+	while not world_view.is_terrain_chunking_complete() and settle_frames < 4000:
+		await get_tree().process_frame
+		settle_frames += 1
 	for _settle in 30:
 		await get_tree().process_frame
 
+	print("FRAMES zoom=%.2f  (chunks settled after %d frames)" % [world_view.camera.zoom.x, settle_frames])
 	print("FRAMES villagers=%d monsters=%d animals=%d buildings=%d nodes=%d corruption=%d" % [sim.villagers.size(), sim.monsters.size(), sim.animals.size(), sim.buildings.size(), sim.resource_nodes.size(), sim.corruption_cells.size()])
 	await _measure_frames("everything on")
 	world_view.visible = false
@@ -997,6 +1012,76 @@ func _probe_world_input() -> void:
 		push_error("Pointer input cannot reach the world view. Blocking controls: %s" % str(blockers))
 	get_tree().quit(0 if ok else 1)
 
+func _probe_frame_budget() -> void:
+	# Guards the cost of a single world redraw across the zoom range. A band
+	# between the old surface-LOD threshold and about 1.6 drew the whole region in
+	# full detail and cost 167 ms a frame — six frames a second — and nothing in
+	# the suite could see it, because every performance number until now was taken
+	# by hand on a desktop with terrain still streaming.
+	#
+	# The dummy renderer issues no GPU work, but the script side still walks the
+	# cells and builds the draw list, which is where that cost lived, so this is
+	# meaningful headless. The budget is deliberately loose: healthy is under 3 ms
+	# and the regression was fifty times that.
+	# Set to catch the catastrophic band, not the detailed path's known cost: the
+	# regression measured 167 ms, the detailed path runs 21-32 ms, and everything
+	# on the cheap path is under 2 ms.
+	const BUDGET_MS := 60.0
+	AppController.select_mode(&"traditional")
+	AppController.select_region(&"applemeadow")
+	AppController.establish_selected_region()
+	for _index in 60:
+		SimulationHost.advance_tick()
+	var settle := 0
+	while not world_view.is_terrain_chunking_complete() and settle < 6000:
+		await get_tree().process_frame
+		settle += 1
+	var worst_zoom := 0.0
+	var worst_ms := 0.0
+	for zoom in [0.5, 0.9, 1.0, 1.2, 1.5, 1.6, 2.2, 3.0]:
+		world_view.camera.zoom = Vector2(zoom, zoom)
+		await get_tree().process_frame
+		world_view.debug_draw_usec = 0.0
+		world_view.debug_draw_count = 0
+		var redraws := 6
+		for _repeat in redraws:
+			world_view.queue_redraw()
+			await get_tree().process_frame
+		# Only the time inside _draw. Timing whole frames headless measures the
+		# frame wait, which swamps the thing being guarded.
+		var per_draw := world_view.debug_draw_usec / maxf(1.0, float(world_view.debug_draw_count)) / 1000.0
+		print("FRAME BUDGET zoom %.2f -> %.2f ms per redraw" % [zoom, per_draw])
+		if per_draw > worst_ms:
+			worst_ms = per_draw
+			worst_zoom = zoom
+	print("FRAME BUDGET worst %.2f ms at zoom %.2f (budget %.0f ms)" % [worst_ms, worst_zoom, BUDGET_MS])
+	if worst_ms > BUDGET_MS:
+		push_error("A world redraw costs %.1f ms at zoom %.2f, over the %.0f ms budget." % [worst_ms, worst_zoom, BUDGET_MS])
+		get_tree().quit(1)
+		return
+	get_tree().quit(0)
+
+func _capture_zoom() -> void:
+	AppController.select_mode(&"traditional")
+	AppController.select_region(&"applemeadow")
+	AppController.establish_selected_region()
+	AppController.set_screen(&"play")
+	for _index in 60:
+		SimulationHost.advance_tick()
+	for _settle in 20:
+		await get_tree().process_frame
+	var requested := 0.78
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--zoom="):
+			requested = float(argument.split("=")[1])
+	world_view.camera.zoom = Vector2(requested, requested)
+	world_view.queue_redraw()
+	for _frame in 6:
+		await get_tree().process_frame
+	var visible_cells := get_viewport_rect().size.x / (8.0 * requested)
+	print("ZOOM %.2f -> %.1f px per cell, %.0f cells across the screen" % [requested, 8.0 * requested, visible_cells])
+	_save_capture("res://build/captures/zoom.png")
+
 func _capture_costs() -> void:
 	AppController.select_mode(&"traditional")
 	AppController.select_region(&"applemeadow")
@@ -1022,6 +1107,16 @@ func _capture_materials() -> void:
 	for _index in 60:
 		SimulationHost.advance_tick()
 	await get_tree().process_frame
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--zoom="):
+			var requested := float(argument.split("=")[1])
+			world_view.camera.zoom = Vector2(requested, requested)
+			world_view.queue_redraw()
+			print("ZOOM %.2f -> %.1f px per cell, %.0f cells across" % [requested, 8.0 * requested, get_viewport_rect().size.x / (8.0 * requested)])
+			for _frame in 6:
+				await get_tree().process_frame
+			_save_capture("res://build/captures/zoomed.png")
+			return
 	_toggle_materials_drawer()
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -4854,6 +4949,13 @@ func _show_screen(screen: StringName) -> void:
 	hud.visible = screen == &"play"
 	world_view.visible = screen == &"play"
 	if screen == &"play":
+		# Land inside the village. The world is drawn at eight pixels a cell, so at
+		# the camera's untouched default of 1.0 a villager is eight pixels and most
+		# of a 256-cell region is on screen at once — the art is all there and none
+		# of it is legible. Only the untouched default is replaced, so a player who
+		# has pinched to their own zoom keeps it.
+		if is_equal_approx(world_view.camera.zoom.x, 1.0):
+			world_view.camera.zoom = Vector2(WorldView.VILLAGE_ZOOM, WorldView.VILLAGE_ZOOM)
 		world_view.queue_redraw()
 	elif screen == &"world_map":
 		_refresh_selected_region()

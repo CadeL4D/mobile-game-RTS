@@ -144,6 +144,17 @@ jobs:
           godot --headless --path . --quit-after 600 -- --input-probe 2>&1 | tee build/input-probe.log
           grep -q "INPUT PROBE" build/input-probe.log
 
+      # Nothing in the suite could see that the world took 167 ms a frame to draw
+      # at the zoom the game opened at — six frames a second — because every
+      # performance figure until now was taken by hand on a desktop. This measures
+      # the cost of a world redraw across the zoom range and fails on a collapse.
+      - name: Check the world redraw stays within budget
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          godot --headless --path . --quit-after 60000 -- --frame-budget 2>&1 | tee build/frame-budget.log
+          grep -q "FRAME BUDGET worst" build/frame-budget.log
+
       - name: Export Godot project to Xcode
         timeout-minutes: 20
         run: |
